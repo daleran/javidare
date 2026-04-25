@@ -258,7 +258,6 @@ export function createRenderer(canvas) {
     for (const e of state.enemies) drawEnemy(ctx, e);
 
     drawPlayerShip(ctx, state.playerShip);
-    drawPullRadius(ctx, state.playerShip);
 
     // Build progress arc around player
     if (state.buildPhase === 'holding') {
