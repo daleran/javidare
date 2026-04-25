@@ -1,6 +1,6 @@
 import { createNetClient } from './client.js';
 
-const WORKER_URL = import.meta.env.VITE_WORKER_URL || 'http://localhost:8787';
+const WORKER_URL = import.meta.env.VITE_WORKER_URL || window.location.origin;
 const WS_URL = WORKER_URL.replace(/^http/, 'ws');
 
 export async function initLobby() {
