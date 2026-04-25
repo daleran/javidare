@@ -20,6 +20,10 @@ export function updateWaves(state, dt) {
   if (state.wavePhase === 'done') return;
 
   if (state.wavePhase === 'buildup') {
+    // Seed origins on the very first tick of any buildup so indicators show during countdown
+    if (state.waveOrigins.length === 0) {
+      pickWaveOrigins(state, state.waveIndex + 1);
+    }
     state.waveTimer -= dt;
     if (state.waveTimer <= 0) {
       startWave(state);
@@ -44,12 +48,38 @@ export function updateWaves(state, dt) {
     if (budgetDone && (killRate >= 0.8 || timedOut)) {
       if (state.waveIndex >= TOTAL_WAVES) {
         state.wavePhase = 'done';
+        state.waveOrigins = [];
       } else {
         state.wavePhase = 'buildup';
         state.waveTimer = BUILDUP_TIME;
+        pickWaveOrigins(state, state.waveIndex + 1);
       }
     }
   }
+}
+
+// Pick origin directions for the given 1-based wave number and write to state.waveOrigins.
+// Called at the start of buildup so indicators can preview during the countdown.
+function pickWaveOrigins(state, nextWaveIndex) {
+  const numOrigins = nextWaveIndex <= 3 ? 1 : 2;
+  const origins = [];
+
+  const angle1 = Math.random() * Math.PI * 2;
+  origins.push(makeOrigin(angle1));
+
+  if (numOrigins === 2) {
+    // Force second angle ≥90° away so pockets are visually distinct
+    const minSep = Math.PI / 2;
+    let angle2 = angle1 + minSep + Math.random() * (Math.PI * 2 - minSep * 2);
+    angle2 = angle2 % (Math.PI * 2);
+    origins.push(makeOrigin(angle2));
+  }
+
+  state.waveOrigins = origins;
+}
+
+function makeOrigin(angle) {
+  return { angle, x: Math.cos(angle) * WORLD_HALF, y: Math.sin(angle) * WORLD_HALF };
 }
 
 function startWave(state) {
@@ -68,14 +98,18 @@ function startWave(state) {
     state.waveSpawnBudget = Math.round(BASE_BUDGET * (1 + 0.35 * (state.waveIndex - 1)));
   }
 
+  // Origins were pre-computed in buildup; if somehow missing (first wave), pick now
+  if (state.waveOrigins.length === 0) {
+    pickWaveOrigins(state, state.waveIndex);
+  }
+
   state.wavePhase = 'combat';
 }
 
 function spawnNextEnemy(state) {
   if (state.waveBossWave) {
-    // Spawn the miniboss
     state.waveSpawnBudget = 0;
-    const pos = randomEdgePosition();
+    const pos = spawnPositionFromOrigin(state);
     const id = nextId(state);
     const boss = createEnemy(id, 'miniboss', pos.x, pos.y);
     state.enemies.push(boss);
@@ -100,20 +134,17 @@ function spawnNextEnemy(state) {
   const cost = ENEMY_DEFS[type].spawnCost;
   state.waveSpawnBudget -= cost;
 
-  const pos = randomEdgePosition();
+  const pos = spawnPositionFromOrigin(state);
   const id = nextId(state);
   const enemy = createEnemy(id, type, pos.x, pos.y);
   state.enemies.push(enemy);
   state.waveSpawnCount++;
 }
 
-function randomEdgePosition() {
-  const side = Math.floor(Math.random() * 4);
-  const t = (Math.random() - 0.5) * 2 * WORLD_HALF;
-  switch (side) {
-    case 0: return { x:  WORLD_HALF, y: t };
-    case 1: return { x: -WORLD_HALF, y: t };
-    case 2: return { x: t, y:  WORLD_HALF };
-    default: return { x: t, y: -WORLD_HALF };
-  }
+function spawnPositionFromOrigin(state) {
+  const origin = state.waveOrigins[Math.floor(Math.random() * state.waveOrigins.length)];
+  // Jitter ±~10° around the origin angle so enemies don't stack at a single point
+  const jitter = (Math.random() - 0.5) * 0.35;
+  const angle = origin.angle + jitter;
+  return { x: Math.cos(angle) * WORLD_HALF, y: Math.sin(angle) * WORLD_HALF };
 }

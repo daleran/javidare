@@ -1,4 +1,5 @@
 import { PICKUP_PULL_RADIUS } from '../systems/economy.js';
+import { HOME_HEAL_RADIUS } from '../entities/playerShip.js';
 
 // seeded RNG for deterministic starfield
 function seededRng(seed) {
@@ -196,6 +197,7 @@ export function createRenderer(canvas) {
     camera.applyTransform(ctx);
 
     drawOrbitRings(ctx, state.bodies);
+    drawHealAura(ctx, state.bodies);
     drawBodies(ctx, state.bodies);
     drawWrecks(ctx, state.wrecks, state.bodies);
     drawBuildings(ctx, state.buildings);
@@ -215,6 +217,12 @@ export function createRenderer(canvas) {
     }
 
     ctx.restore();
+
+    // Screen-space overlays (after world restore — coordinates are CSS pixels)
+    if (state.gameStatus === 'playing' || state.gameStatus === 'paused') {
+      drawWaveOriginIndicators(ctx, state, camera, W, H);
+      drawOffscreenEnemyMarkers(ctx, state, camera, W, H);
+    }
   }
 }
 
@@ -267,6 +275,34 @@ function drawOrbitRings(ctx, bodies) {
     ctx.arc(parent.x, parent.y, b.orbitRadius, 0, Math.PI * 2);
     ctx.stroke();
   }
+  ctx.setLineDash([]);
+  ctx.restore();
+}
+
+function drawHealAura(ctx, bodies) {
+  const home = bodies.find(b => b.isHome);
+  if (!home) return;
+  const t = performance.now() / 1000;
+  const pulse = 0.5 + 0.5 * Math.sin(t * 1.8);
+
+  ctx.save();
+  // Radial fill from planet edge outward
+  const grad = ctx.createRadialGradient(home.x, home.y, home.radius, home.x, home.y, HOME_HEAL_RADIUS);
+  grad.addColorStop(0, `rgba(0,220,140,${0.06 + 0.04 * pulse})`);
+  grad.addColorStop(1, 'rgba(0,220,140,0)');
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.arc(home.x, home.y, HOME_HEAL_RADIUS, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Pulsing boundary ring
+  ctx.globalAlpha = 0.12 + 0.10 * pulse;
+  ctx.strokeStyle = '#00dc8c';
+  ctx.lineWidth = 1.2;
+  ctx.setLineDash([6, 10]);
+  ctx.beginPath();
+  ctx.arc(home.x, home.y, HOME_HEAL_RADIUS, 0, Math.PI * 2);
+  ctx.stroke();
   ctx.setLineDash([]);
   ctx.restore();
 }
@@ -510,4 +546,74 @@ function drawBuildArc(ctx, ship, progress) {
 function shiftAlpha(color, factor) {
   // Just use the color directly — we use it for stroke outlines
   return color;
+}
+
+// ─── Screen-edge indicator helpers ──────────────────────────────────────────
+
+// Clamp a world-space point to a rectangle inset from the viewport edges.
+// Returns { sx, sy, angle } where angle points outward from screen center toward the original point.
+function clampToEdge(sx, sy, W, H, margin) {
+  const cx = W / 2, cy = H / 2;
+  const dx = sx - cx, dy = sy - cy;
+  const angle = Math.atan2(dy, dx);
+  const inW = W / 2 - margin, inH = H / 2 - margin;
+  const scale = Math.min(inW / (Math.abs(dx) || 0.001), inH / (Math.abs(dy) || 0.001));
+  const clamped = (sx >= margin && sx <= W - margin && sy >= margin && sy <= H - margin);
+  return {
+    sx: cx + dx * Math.min(scale, 1),
+    sy: cy + dy * Math.min(scale, 1),
+    angle,
+    onScreen: clamped,
+  };
+}
+
+function drawArrow(ctx, x, y, angle, size, color, alpha) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+  ctx.beginPath();
+  ctx.moveTo(size,     0);
+  ctx.lineTo(-size,  size * 0.65);
+  ctx.lineTo(-size * 0.3, 0);
+  ctx.lineTo(-size, -size * 0.65);
+  ctx.closePath();
+  ctx.fillStyle = color;
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  ctx.restore();
+}
+
+function drawWaveOriginIndicators(ctx, state, camera, W, H) {
+  if (!state.waveOrigins || state.waveOrigins.length === 0) return;
+
+  const t = performance.now() / 1000;
+  const isBuildup = state.wavePhase === 'buildup';
+  const margin = 36;
+
+  for (const origin of state.waveOrigins) {
+    const screen = camera.worldToScreen(origin.x, origin.y);
+    const info = clampToEdge(screen.x, screen.y, W, H, margin);
+    if (info.onScreen) continue; // origin is visible in world — no indicator needed
+
+    const alpha = isBuildup
+      ? 0.45 + 0.4 * Math.sin(t * 5)
+      : 0.85;
+
+    drawArrow(ctx, info.sx, info.sy, info.angle, 10, '#ff8c00', alpha);
+  }
+}
+
+function drawOffscreenEnemyMarkers(ctx, state, camera, W, H) {
+  if (!state.enemies || state.enemies.length === 0) return;
+
+  const margin = 24;
+
+  for (const e of state.enemies) {
+    const screen = camera.worldToScreen(e.x, e.y);
+    const info = clampToEdge(screen.x, screen.y, W, H, margin);
+    if (info.onScreen) continue;
+
+    drawArrow(ctx, info.sx, info.sy, info.angle, 5, '#ff8c00', 0.65);
+  }
 }

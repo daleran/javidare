@@ -15,10 +15,10 @@ export const BUILDING_FOR_BODY = {
 };
 
 export const BUILDING_COST = {
-  extractor: 50,
-  lightTurret: 75,
-  turretPlatform: 120,
-  shipyard: 200,
+  extractor: 3,
+  lightTurret: 5,
+  turretPlatform: 7,
+  shipyard: 10,
 };
 
 export const BUILDING_LABEL = {

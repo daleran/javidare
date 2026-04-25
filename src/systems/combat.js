@@ -1,5 +1,6 @@
 import {
   PLAYER_FIRE_RATE, PLAYER_PROJECTILE_SPEED, PLAYER_PROJECTILE_DAMAGE, PLAYER_FIRE_RANGE,
+  HOME_HEAL_RADIUS, HOME_HEAL_RATE,
 } from '../entities/playerShip.js';
 import {
   FLEET_FIRE_RATE, FLEET_PROJECTILE_SPEED, FLEET_PROJECTILE_DAMAGE, FLEET_FIRE_RANGE,
@@ -82,6 +83,15 @@ export function updateCombat(state, dt) {
 
   // Building autofire
   buildingAutofire(state, dt);
+
+  // Home planet healing aura
+  const home = state.bodies.find(b => b.isHome);
+  if (home && state.playerShip.hp < state.playerShip.maxHp) {
+    const dist = Math.hypot(state.playerShip.x - home.x, state.playerShip.y - home.y);
+    if (dist < HOME_HEAL_RADIUS) {
+      state.playerShip.hp = Math.min(state.playerShip.maxHp, state.playerShip.hp + HOME_HEAL_RATE * dt);
+    }
+  }
 }
 
 function updateEnemyAI(state, dt) {
@@ -90,14 +100,13 @@ function updateEnemyAI(state, dt) {
     const e = state.enemies[i];
     const def = ENEMY_DEFS[e.type];
 
-    // Pick target
+    // Pick target — type-biased nearest-friendly
     let target = null;
     if (e.type === 'bomber') {
-      // Bombers prefer nearest building, then player
-      target = nearestBuilding(state, e) || state.playerShip;
+      target = nearestBuilding(state, e) || nearestShip(state, e);
     } else {
-      // Skirmisher + miniboss prefer player
-      target = state.playerShip;
+      // Skirmisher + miniboss prefer ships, fall back to buildings
+      target = nearestShip(state, e) || nearestBuilding(state, e);
     }
 
     if (!target) continue;
@@ -138,11 +147,17 @@ function updateEnemyAI(state, dt) {
           target.hp -= def.ramDamage;
           if (target.hp <= 0) state.gameStatus = 'gameover';
         } else {
-          // target is a building
-          const bIdx = state.buildings.indexOf(target);
-          if (bIdx >= 0) {
+          const fIdx = state.fleet.indexOf(target);
+          if (fIdx >= 0) {
             target.hp -= def.ramDamage;
-            if (target.hp <= 0) killBuilding(state, bIdx);
+            if (target.hp <= 0) killFrigate(state, fIdx);
+          } else {
+            // target is a building
+            const bIdx = state.buildings.indexOf(target);
+            if (bIdx >= 0) {
+              target.hp -= def.ramDamage;
+              if (target.hp <= 0) killBuilding(state, bIdx);
+            }
           }
         }
         // Bomber dies on ram
@@ -275,6 +290,16 @@ function nearestBuilding(state, enemy) {
   for (const b of state.buildings) {
     const d = Math.hypot(b.x - enemy.x, b.y - enemy.y);
     if (d < bestDist) { bestDist = d; best = b; }
+  }
+  return best;
+}
+
+function nearestShip(state, enemy) {
+  let best = null, bestDist = Infinity;
+  const candidates = state.playerShip ? [state.playerShip, ...state.fleet] : [...state.fleet];
+  for (const s of candidates) {
+    const d = Math.hypot(s.x - enemy.x, s.y - enemy.y);
+    if (d < bestDist) { bestDist = d; best = s; }
   }
   return best;
 }
