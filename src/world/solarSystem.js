@@ -6,8 +6,8 @@ export function initBodies() {
     angle: def.phase,
     x: 0,
     y: 0,
-    building: null,         // building entity id or null
-    buildableAt: 0,         // timestamp when buildable again (after wreck cooldown)
+    buildings: [],          // [{ type, id }] — one entry per occupied slot
+    cooldowns: {},          // { [buildingType]: timestamp } when slot is rebuildable
   }));
 
   // Compute initial positions

@@ -35,11 +35,13 @@ export function createGame(canvas, hudContainer) {
     camera.x = state.playerShip.x;
     camera.y = state.playerShip.y;
 
-    // Pre-built extractor on home planet for seed income
+    // Pre-built extractor on home planet for seed income.
+    // (Note: home is rocky, which doesn't normally take an extractor — but the
+    // pre-build is purely for starting income, so we slot it directly.)
     const extId = nextId(state);
     const extractor = createBuilding(extId, 'extractor', home.id, home.x, home.y);
     state.buildings.push(extractor);
-    home.building = extId;
+    home.buildings.push({ type: 'extractor', id: extId });
 
     // Build-system transient fields
     state.buildPhase = 'idle';
