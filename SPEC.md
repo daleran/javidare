@@ -13,7 +13,7 @@ The repo is currently a clean Vite vanilla-JS scaffold (one `index.html`, `src/m
 1. **One-handed intensity.** Mouse aims, left hand drives. You never pause to manage a menu during a fight.
 2. **Every planet matters.** Orbits bring structures in and out of position; where you build changes over time.
 3. **The fleet is your presence.** Follower ships are a visible, growing reward — losing them stings.
-4. **Small scope, high polish.** 1 solar system, 3–4 building types, 2–3 enemy types, ~5 waves + a boss finale.
+4. **Small scope, high polish.** 1 solar system, 4 building types, 2–3 enemy types, ~5 waves + a boss finale.
 
 ---
 
@@ -24,6 +24,28 @@ The repo is currently a clean Vite vanilla-JS scaffold (one `index.html`, `src/m
 3. Fly over a valid build target, **hold Space** to spend money and build.
 4. Waves arrive on a timer (continuous — no build phase). Defend the system and your ship.
 5. Survive 5 waves + boss = win. Ship destroyed = lose.
+
+---
+
+## Visual Aesthetic
+
+Inspired by **Homeworld's tactical/sensor map** — clean, military-grade space hardware with no excess.
+
+- **Background**: near-black deep space (`#050810`). Faint blue hex or grid overlay, very low opacity, to suggest a tactical display.
+- **Ships & buildings**: wireframe / outline vector shapes — no filled sprites. Player ship is a bright white triangle; frigates are slightly smaller cyan triangles; enemies use distinct amber/orange silhouettes.
+- **Planets & bodies**: simple filled circles with a thin outline ring (planetary body) and a dashed orbit ring. Gas giants are larger with a subtle banding stroke.
+- **Color palette**:
+  - Background: `#050810`
+  - Selection / friendly: `#00d4ff` (cyan)
+  - Enemy: `#ff8c00` (amber-orange)
+  - Neutral / UI chrome: `#4a7fa5` (steel blue)
+  - Credits / economy: `#ffe066` (pale gold)
+  - Danger / damage: `#ff3333`
+- **Typography**: monospace font (system `ui-monospace` or `Courier New`). All HUD text is uppercase, sparse.
+- **FX**: no particle explosions — enemies "break apart" into a few diverging line segments then fade. Projectiles are short bright dashes. Build progress ring is a dashed cyan arc.
+- **UI chrome**: HUD panels have a thin `1px` border in steel blue, semi-transparent dark background, and subtle scanline or grid texture. Matches the Homeworld interface panel aesthetic.
+
+The CSS `--accent` custom property in the existing `style.css` will be overridden to `#00d4ff`. New tokens for `--enemy`, `--gold`, `--danger`, `--bg-panel` will be added.
 
 ---
 
@@ -47,7 +69,7 @@ Autofire is always on for player ship, fleet ships, and turret buildings. Target
 ## World / Scene
 
 - **Single solar system**, roughly 4000 × 4000 world units, centered on the sun.
-- **Sun** at origin. Damages any ship that touches it (both enemy and player — environmental hazard).
+- **Sun** at origin. Acts as a solid collision boundary — ships cannot pass through it, but it deals no damage.
 - **~6–8 celestial bodies** on circular orbits at varying radii. Each rotates around the sun at its own angular velocity. Moons orbit their parent planet.
 - **Camera** follows the player ship with slight lookahead toward the cursor. Fixed zoom in MVP.
 - **Background** is a parallax starfield (two layers) drawn under the solar system.
@@ -61,6 +83,8 @@ Autofire is always on for player ship, fleet ships, and turret buildings. Target
 | Moon (orbits a planet) | Light turret | Fast (around parent) |
 | Asteroid field / large asteroid | Extractor | Variable |
 
+Multiple gas giants can exist in the solar system; each can host its own shipyard. Every shipyard built adds frigate slots to the fleet.
+
 One of the rocky planets is designated the **Home Planet** (starts with a pre-built extractor so you have seed income).
 
 ---
@@ -70,7 +94,7 @@ One of the rocky planets is designated the **Home Planet** (starts with a pre-bu
 - HP: 100. No shields in MVP.
 - Auto-fires a fast low-damage pulse at nearest enemy within range.
 - Acceleration-based movement with linear damping (feels weighty, not like Asteroids inertia, not like a top-down cursor).
-- Collides with planets/sun (stops you; sun does chip damage).
+- Collides with planets/sun (stops you; no damage from either in MVP).
 - **If HP hits 0 → run ends (loss).**
 - Respawns at the Home Planet only between runs.
 
@@ -94,24 +118,28 @@ Costs (tuning placeholders):
 
 ## Buildings (MVP Set)
 
-| Building | Effect | Notes |
-|---|---|---|
-| **Extractor** | +X money / second, rate scales with asteroid size | No combat behavior. Destructible. |
-| **Light turret** | Short range, fast fire rate, low damage | Autofires, lives on moons so it moves with the orbit. |
-| **Turret platform** | Medium range, medium damage, slower fire | On rocky planets. Main defensive backbone. |
-| **Shipyard** | Periodically spawns a follower ship that joins your fleet | Cap: 6 follower ships total across all shipyards. |
+| Building | Body | Effect | Notes |
+|---|---|---|---|
+| **Extractor** | Asteroid | +X credits/sec, scales with asteroid size | No combat behavior. Destructible. |
+| **Light turret** | Moon | Short range, fast fire rate, low damage | Autofires; moves with moon's orbit. |
+| **Turret platform** | Rocky planet | Medium range, medium damage, slower fire | Main defensive backbone. |
+| **Shipyard** | Gas giant | Adds 4 Frigate slots to fleet capacity | Each built shipyard grows your fleet by 4; replaces lost frigates over ~15s per slot. |
 
-All buildings are destructible; destroyed buildings leave a wreck marker and the body becomes buildable again on a cooldown (~10s).
+All buildings are destructible; destroyed buildings leave a wreck marker and the body becomes buildable again on a cooldown (~10s). Destroying a shipyard removes its 4 slots — any frigates over the new cap are immediately lost.
 
 ---
 
 ## Fleet (Follower Ships)
 
-- Produced by shipyards, capped at **6**.
+Fleet capacity = **4 × number of Shipyards built**. No global cap — build more shipyards, fly with more frigates.
+
+- **Ship class: Frigate.** HP: 50. Medium speed, medium damage, medium fire rate.
 - Follow the player ship in a loose formation (offset positions, light steering).
 - Autofire at nearest enemy in range.
-- Weaker than player ship (HP 25, low damage).
-- Do not respawn in-run — lost fleet is lost until a shipyard produces a replacement.
+- Lost frigates are replenished by their home shipyard at ~1 frigate per 15s.
+- Destroying a shipyard removes its 4 slots; excess frigates over the new cap are immediately lost.
+
+Example: 3 shipyards → fleet cap of 12 frigates.
 
 ---
 
@@ -139,9 +167,18 @@ Win = boss defeated. Lose = player ship destroyed.
 ## Economy
 
 - Starting wallet: 100.
-- Income sources (MVP): extractors only. Enemy kills give **no** money in MVP (keeps pressure on defending extractors).
+- Income sources (MVP): extractors (passive) + enemy kill drops (variable, like Thronefall).
+- **Kill drops**: each enemy type drops a fixed base amount with a ±25% random variance. Drops appear as a floating credit pickup at the kill location and are collected automatically when the player or a fleet ship passes near.
 - Spending: building construction only.
 - Single resource ("credits"). No research/tech tree in MVP.
+
+### Kill drop values (tuning placeholders)
+
+| Enemy | Drop range |
+|---|---|
+| Skirmisher | 8–12 |
+| Bomber | 18–27 |
+| Boss | 150–200 (lump) |
 
 ---
 
@@ -158,7 +195,7 @@ HTML/CSS sits on top of the canvas as positioned `<div>` layers — no canvas te
 | Fleet counter | Top-right | "Fleet 3/6" |
 | Pause / Game over / Victory | Full-screen modal | Buttons: Restart, Quit |
 
-Style reuses the existing `style.css` color tokens (`--accent` purple) for a consistent neon feel.
+Style uses the Homeworld tactical map color palette: cyan friendlies, amber enemies, steel-blue chrome, gold credits. See Visual Aesthetic section.
 
 ---
 
@@ -232,8 +269,8 @@ src/
 
 ## Open Questions (flag before implementation)
 
-1. **Visual style** — retro vector (Asteroids-inspired outlines) vs. neon glow (Geometry Wars-ish) vs. flat shapes? Spec currently assumes neon matching existing purple accent.
-2. **Sun damage** — should touching the sun be instant-kill or chip damage? Currently chip damage.
+1. ~~**Visual style**~~ — **Resolved**: Homeworld tactical map aesthetic. Wireframe vectors, cyan/amber/steel-blue palette, monospace UI. See Visual Aesthetic section.
+2. ~~**Sun damage**~~ — **Resolved**: no damage. Sun is a solid collision boundary only.
 3. **Fleet cap 6** — is that the right feel? Easy to tune.
 4. **Boss design** — should boss be a single multi-phase unit, or a "miniboss + adds" assault? Currently single multi-phase.
 5. **Build cooldown on destroyed bodies** — prevents spam-rebuild abuse. 10s is a guess.
