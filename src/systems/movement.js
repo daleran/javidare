@@ -2,7 +2,6 @@ import { PLAYER_ACCEL, PLAYER_DAMPING, PLAYER_SPEED } from '../entities/playerSh
 import { FLEET_ACCEL, FLEET_DAMPING, FLEET_SPEED, getSlotOffset } from '../entities/fleetShip.js';
 
 const WORLD_HALF = 2200;
-const OVERLAP_BUFFER = 4; // extra pixels to stop before body surface
 
 export function updateMovement(state, input, dt) {
   if (state.gameStatus !== 'playing') return;
@@ -42,26 +41,6 @@ export function updateMovement(state, input, dt) {
 
   ship.x += ship.vx * dt;
   ship.y += ship.vy * dt;
-
-  // Collision with bodies and sun
-  for (const body of state.bodies) {
-    const dx = ship.x - body.x;
-    const dy = ship.y - body.y;
-    const dist = Math.hypot(dx, dy);
-    const minDist = body.radius + 12 + OVERLAP_BUFFER;
-    if (dist < minDist && dist > 0) {
-      const nx = dx / dist;
-      const ny = dy / dist;
-      ship.x = body.x + nx * minDist;
-      ship.y = body.y + ny * minDist;
-      // Cancel velocity component toward the body
-      const dot = ship.vx * nx + ship.vy * ny;
-      if (dot < 0) {
-        ship.vx -= dot * nx;
-        ship.vy -= dot * ny;
-      }
-    }
-  }
 
   // Soft world boundary
   ship.x = Math.max(-WORLD_HALF, Math.min(WORLD_HALF, ship.x));

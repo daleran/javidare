@@ -8,8 +8,8 @@ export const ENEMY_DEFS = {
     fireSpeed: 500,
     fireRange: 380,
     spawnCost: 1,
-    dropMin: 8,
-    dropMax: 12,
+    dropMin: 1,
+    dropMax: 1,
   },
   bomber: {
     hp: 90,
@@ -22,8 +22,8 @@ export const ENEMY_DEFS = {
     ramDamage: 40,
     contactRadius: 18,
     spawnCost: 3,
-    dropMin: 18,
-    dropMax: 27,
+    dropMin: 2,
+    dropMax: 3,
   },
   miniboss: {
     hp: 600,
@@ -35,8 +35,8 @@ export const ENEMY_DEFS = {
     fireRange: 600,
     addSpawnInterval: 8,
     spawnCost: 20,
-    dropMin: 150,
-    dropMax: 200,
+    dropMin: 15,
+    dropMax: 20,
   },
 };
 

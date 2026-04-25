@@ -5,7 +5,7 @@ const TOTAL_WAVES = 6;
 export function createHud(container) {
   container.innerHTML = `
     <div id="hud-wallet" class="hud-panel">
-      <div id="hud-credits">CREDITS: 100</div>
+      <div id="hud-credits">CREDITS: 5</div>
       <div id="hud-income" style="color:var(--gold);font-size:10px;margin-top:2px">+0.0/s</div>
     </div>
 

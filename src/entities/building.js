@@ -26,7 +26,7 @@ export const BUILDING_PROJECTILE_SPEED = {
 };
 
 // Income per second for extractors; scaled by body radius
-export const EXTRACTOR_BASE_INCOME = 0.4; // credits/sec per radius unit
+export const EXTRACTOR_BASE_INCOME = 0.01; // credits/sec per radius unit
 
 export const SHIPYARD_SLOTS = 4;
 export const SHIPYARD_RESPAWN_TIME = 15; // seconds per frigate

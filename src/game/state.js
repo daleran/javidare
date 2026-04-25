@@ -1,6 +1,6 @@
 export function createState() {
   return {
-    wallet: 100,
+    wallet: 5,
     incomePerSec: 0,
     waveIndex: 0,       // 1-6; starts at 0 = no wave yet
     wavePhase: 'buildup', // 'buildup' | 'combat' | 'done'
@@ -9,6 +9,7 @@ export function createState() {
     waveSpawnCount: 0,  // how many enemies spawned this wave
     waveKillCount: 0,   // how many killed this wave
     waveSpawnBudget: 0, // remaining spawn budget
+    waveOrigins: [],    // [{ angle, x, y }] — set during buildup for indicator preview
     gameStatus: 'playing', // 'playing' | 'paused' | 'gameover' | 'victory'
 
     sun: null,
