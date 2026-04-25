@@ -20,12 +20,24 @@ export function createHud(container) {
 
     <div id="hud-build-prompt" class="hud-panel"></div>
 
+    <button class="hud-btn" id="btn-upgrade-open">UPGRADE</button>
+
+    <div id="hud-upgrade-panel">
+      <div id="hud-upgrade-header">
+        <span>UPGRADE TERMINAL</span>
+        <button class="hud-btn secondary" id="btn-upgrade-close">✕</button>
+      </div>
+      <div id="hud-upgrade-body">
+        <!-- upgrade options will go here -->
+      </div>
+    </div>
+
     <div id="hud-modal-gameover" class="hud-modal">
       <h1>SHIP DESTROYED</h1>
       <p>THE SYSTEM HAS FALLEN</p>
       <div class="hud-modal-buttons">
         <button class="hud-btn" id="btn-restart-gameover">RESTART</button>
-        <button class="hud-btn secondary" id="btn-quit-gameover">QUIT</button>
+        <button class="hud-btn secondary" id="btn-mainmenu-gameover">MAIN MENU</button>
       </div>
     </div>
 
@@ -43,7 +55,7 @@ export function createHud(container) {
       <p>PRESS ESC TO RESUME</p>
       <div class="hud-modal-buttons">
         <button class="hud-btn" id="btn-resume">RESUME</button>
-        <button class="hud-btn secondary" id="btn-quit-pause">QUIT</button>
+        <button class="hud-btn secondary" id="btn-mainmenu-pause">MAIN MENU</button>
       </div>
     </div>
   `;
@@ -58,7 +70,14 @@ export function createHud(container) {
     modalGameover: container.querySelector('#hud-modal-gameover'),
     modalVictory: container.querySelector('#hud-modal-victory'),
     modalPause: container.querySelector('#hud-modal-pause'),
+    upgradePanel: container.querySelector('#hud-upgrade-panel'),
+    upgradeBody: container.querySelector('#hud-upgrade-body'),
   };
+
+  const btnOpen = container.querySelector('#btn-upgrade-open');
+  const btnClose = container.querySelector('#btn-upgrade-close');
+  btnOpen.addEventListener('click', () => els.upgradePanel.classList.add('open'));
+  btnClose.addEventListener('click', () => els.upgradePanel.classList.remove('open'));
 
   return els;
 }
@@ -68,11 +87,11 @@ export function updateHud(hud, state, camera, onRestart, onQuit, onResume) {
   if (!hud._listenersAttached) {
     hud._listenersAttached = true;
     document.getElementById('btn-restart-gameover')?.addEventListener('click', onRestart);
-    document.getElementById('btn-quit-gameover')?.addEventListener('click', onQuit);
+    document.getElementById('btn-mainmenu-gameover')?.addEventListener('click', onQuit);
     document.getElementById('btn-restart-victory')?.addEventListener('click', onRestart);
     document.getElementById('btn-quit-victory')?.addEventListener('click', onQuit);
     document.getElementById('btn-resume')?.addEventListener('click', onResume);
-    document.getElementById('btn-quit-pause')?.addEventListener('click', onQuit);
+    document.getElementById('btn-mainmenu-pause')?.addEventListener('click', onQuit);
   }
 
   // Modals

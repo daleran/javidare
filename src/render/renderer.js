@@ -259,6 +259,9 @@ export function createRenderer(canvas) {
 
     drawPlayerShip(ctx, state.playerShip);
 
+    // Remote players (multiplayer)
+    for (const rp of (state.remotePlayers || [])) drawRemotePlayerShip(ctx, rp);
+
     // Build progress arc around player
     if (state.buildPhase === 'holding') {
       drawBuildArc(ctx, state.playerShip, state.buildProgress);
@@ -561,14 +564,21 @@ function drawFx(ctx, fx) {
     const alpha = Math.max(0, f.ttl / f.maxTtl);
     ctx.save();
     ctx.globalAlpha = alpha;
-    ctx.strokeStyle = f.color;
-    ctx.lineWidth = 1.2;
-    const nx = Math.cos(Math.atan2(f.vy, f.vx));
-    const ny = Math.sin(Math.atan2(f.vy, f.vx));
-    ctx.beginPath();
-    ctx.moveTo(f.x, f.y);
-    ctx.lineTo(f.x - nx * f.len, f.y - ny * f.len);
-    ctx.stroke();
+    if (f.dot) {
+      ctx.fillStyle = f.color;
+      ctx.beginPath();
+      ctx.arc(f.x, f.y, f.size, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      ctx.strokeStyle = f.color;
+      ctx.lineWidth = 1.2;
+      const nx = Math.cos(Math.atan2(f.vy, f.vx));
+      const ny = Math.sin(Math.atan2(f.vy, f.vx));
+      ctx.beginPath();
+      ctx.moveTo(f.x, f.y);
+      ctx.lineTo(f.x - nx * f.len, f.y - ny * f.len);
+      ctx.stroke();
+    }
     ctx.restore();
   }
 }
@@ -617,6 +627,19 @@ function drawPlayerShip(ctx, ship) {
   ctx.restore();
 
   drawTriangle(ctx, ship.x, ship.y, 14, ship.heading, '#ffffff', 1.8);
+}
+
+function drawRemotePlayerShip(ctx, ship) {
+  if (!ship) return;
+  ctx.save();
+  ctx.globalAlpha = 0.15;
+  ctx.strokeStyle = '#00ff88';
+  ctx.lineWidth = 8;
+  ctx.beginPath();
+  ctx.arc(ship.x, ship.y, 16, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+  drawTriangle(ctx, ship.x, ship.y, 14, ship.heading, '#00ff88', 1.8);
 }
 
 function drawPullRadius(ctx, ship) {

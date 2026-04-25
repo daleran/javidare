@@ -32,25 +32,26 @@ export function updateEconomy(state, dt) {
     if (body) { bldg.x = body.x; bldg.y = body.y; }
   }
 
-  // Pickup collection: player or any frigate nearby auto-collects
-  // Player also pulls pickups within PICKUP_PULL_RADIUS toward itself
-  const player = state.playerShip;
-  const collectors = [player, ...state.fleet];
+  // Pickup collection: all players and fleet auto-collect; nearest player pulls
+  const playerShips = state.players ? Object.values(state.players) : (state.playerShip ? [state.playerShip] : []);
+  const collectors = [...playerShips, ...state.fleet];
   for (let i = state.pickups.length - 1; i >= 0; i--) {
     const pk = state.pickups[i];
     pk.ttl -= dt;
     if (pk.ttl <= 0) { state.pickups.splice(i, 1); continue; }
 
-    // Pull toward player if within pull radius — ease-in: speed scales with proximity
-    const pdx = player.x - pk.x;
-    const pdy = player.y - pk.y;
-    const pdist = Math.hypot(pdx, pdy);
-    if (pdist < PICKUP_PULL_RADIUS && pdist > 0) {
-      const t = 1 - pdist / PICKUP_PULL_RADIUS; // 0 at edge, 1 at player
+    // Pull toward nearest player ship within pull radius
+    let nearestPlayer = null, nearestDist = PICKUP_PULL_RADIUS;
+    for (const ps of playerShips) {
+      const d = Math.hypot(ps.x - pk.x, ps.y - pk.y);
+      if (d < nearestDist) { nearestDist = d; nearestPlayer = ps; }
+    }
+    if (nearestPlayer && nearestDist > 0) {
+      const t = 1 - nearestDist / PICKUP_PULL_RADIUS;
       const easedSpeed = PICKUP_PULL_SPEED * (t * t);
-      const step = Math.min(easedSpeed * dt, pdist);
-      pk.x += (pdx / pdist) * step;
-      pk.y += (pdy / pdist) * step;
+      const step = Math.min(easedSpeed * dt, nearestDist);
+      pk.x += ((nearestPlayer.x - pk.x) / nearestDist) * step;
+      pk.y += ((nearestPlayer.y - pk.y) / nearestDist) * step;
     }
 
     let collected = false;

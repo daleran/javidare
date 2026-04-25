@@ -14,6 +14,13 @@ import { createProjectile } from '../entities/projectile.js';
 import { nextId } from '../game/state.js';
 
 const ENEMY_SPEED = { skirmisher: 180, bomber: 90, miniboss: 60 };
+
+// Returns all player-controlled ships regardless of single/multi mode
+function getAllPlayerShips(state) {
+  if (state.players) return Object.values(state.players);
+  return state.playerShip ? [state.playerShip] : [];
+}
+
 const STRAFE_PERIOD = 2.5; // seconds between strafe direction changes
 const STRAFE_RANGE = 220;  // distance at which skirmisher strafes
 const BOMB_CONTACT = 22;   // bomber contact radius for ram damage
@@ -43,14 +50,20 @@ export function updateCombat(state, dt) {
         }
       }
     } else {
-      // Enemy projectile hits player or fleet
-      const ship = state.playerShip;
-      if (Math.hypot(p.x - ship.x, p.y - ship.y) < 14) {
-        ship.hp -= p.damage;
-        state.projectiles.splice(i, 1);
-        if (ship.hp <= 0) state.gameStatus = 'gameover';
-        continue;
+      // Enemy projectile hits any player ship
+      let hitPlayer = false;
+      for (const ship of getAllPlayerShips(state)) {
+        if (Math.hypot(p.x - ship.x, p.y - ship.y) < 14) {
+          ship.hp -= p.damage;
+          state.projectiles.splice(i, 1);
+          if (ship.hp <= 0 && getAllPlayerShips(state).every(s => s.hp <= 0)) {
+            state.gameStatus = 'gameover';
+          }
+          hitPlayer = true;
+          break;
+        }
       }
+      if (hitPlayer) continue;
       for (let j = state.fleet.length - 1; j >= 0; j--) {
         const f = state.fleet[j];
         if (Math.hypot(p.x - f.x, p.y - f.y) < 11) {
@@ -87,10 +100,13 @@ export function updateCombat(state, dt) {
 
   // Home planet healing aura
   const home = state.bodies.find(b => b.isHome);
-  if (home && state.playerShip.hp < state.playerShip.maxHp) {
-    const dist = Math.hypot(state.playerShip.x - home.x, state.playerShip.y - home.y);
-    if (dist < HOME_HEAL_RADIUS) {
-      state.playerShip.hp = Math.min(state.playerShip.maxHp, state.playerShip.hp + HOME_HEAL_RATE * dt);
+  if (home) {
+    for (const ship of getAllPlayerShips(state)) {
+      if (ship.hp >= ship.maxHp) continue;
+      const dist = Math.hypot(ship.x - home.x, ship.y - home.y);
+      if (dist < HOME_HEAL_RADIUS) {
+        ship.hp = Math.min(ship.maxHp, ship.hp + HOME_HEAL_RATE * dt);
+      }
     }
   }
 }
@@ -159,9 +175,11 @@ function updateEnemyAI(state, dt) {
       }
       // Ram damage on contact
       if (dist < BOMB_CONTACT) {
-        if (target === state.playerShip) {
+        if (getAllPlayerShips(state).includes(target)) {
           target.hp -= def.ramDamage;
-          if (target.hp <= 0) state.gameStatus = 'gameover';
+          if (target.hp <= 0 && getAllPlayerShips(state).every(s => s.hp <= 0)) {
+            state.gameStatus = 'gameover';
+          }
         } else {
           const fIdx = state.fleet.indexOf(target);
           if (fIdx >= 0) {
@@ -314,7 +332,7 @@ function nearestBuilding(state, enemy) {
 
 function nearestShip(state, enemy) {
   let best = null, bestDist = Infinity;
-  const candidates = state.playerShip ? [state.playerShip, ...state.fleet] : [...state.fleet];
+  const candidates = [...getAllPlayerShips(state), ...state.fleet];
   for (const s of candidates) {
     const d = Math.hypot(s.x - enemy.x, s.y - enemy.y);
     if (d < bestDist) { bestDist = d; best = s; }
@@ -332,16 +350,15 @@ function nearestEnemy(state, x, y, range) {
 }
 
 function playerAutofire(state, dt) {
-  const ship = state.playerShip;
-  ship.fireCooldown -= dt;
-  if (ship.fireCooldown > 0) return;
-
-  const target = nearestEnemy(state, ship.x, ship.y, PLAYER_FIRE_RANGE);
-  if (!target) return;
-
-  ship.fireCooldown = 1 / PLAYER_FIRE_RATE;
-  const angle = Math.atan2(target.y - ship.y, target.x - ship.x);
-  state.projectiles.push(createProjectile(ship.x, ship.y, angle, PLAYER_PROJECTILE_SPEED, PLAYER_PROJECTILE_DAMAGE, 'friendly'));
+  for (const ship of getAllPlayerShips(state)) {
+    ship.fireCooldown -= dt;
+    if (ship.fireCooldown > 0) continue;
+    const target = nearestEnemy(state, ship.x, ship.y, PLAYER_FIRE_RANGE);
+    if (!target) continue;
+    ship.fireCooldown = 1 / PLAYER_FIRE_RATE;
+    const angle = Math.atan2(target.y - ship.y, target.x - ship.x);
+    state.projectiles.push(createProjectile(ship.x, ship.y, angle, PLAYER_PROJECTILE_SPEED, PLAYER_PROJECTILE_DAMAGE, 'friendly'));
+  }
 }
 
 function fleetAutofire(state, dt) {

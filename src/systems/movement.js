@@ -37,6 +37,8 @@ export function updateMovement(state, input, dt) {
     ship.vy = (ship.vy / spd) * PLAYER_SPEED;
   }
 
+  if (keys['KeyW']) spawnThrustParticles(state, ship);
+
   // Planet follow: if not pressing any movement key and near a body, translate with it
   updateFollow(state, ship, keys);
 
@@ -87,6 +89,35 @@ function updateFollow(state, ship, keys) {
   ship.y = followBody.y + ship.followDy;
   ship.vx = 0;
   ship.vy = 0;
+}
+
+function spawnThrustParticles(state, ship) {
+  const spd = Math.hypot(ship.vx, ship.vy);
+  const speedRatio = Math.min(1, spd / PLAYER_SPEED);
+
+  // Always emit 1 particle; emit a second one probabilistically at higher speeds
+  const count = 1 + (Math.random() < speedRatio ? 1 : 0);
+
+  const cos = Math.cos(ship.heading);
+  const sin = Math.sin(ship.heading);
+
+  for (let i = 0; i < count; i++) {
+    const offset = 14 + Math.random() * 6;
+    const spread = (Math.random() - 0.5) * 8;
+    const backSpd = 40 + speedRatio * 180 * Math.random();
+
+    state.fx.push({
+      dot: true,
+      x: ship.x - cos * offset + (-sin) * spread,
+      y: ship.y - sin * offset +   cos  * spread,
+      vx: -cos * backSpd + (Math.random() - 0.5) * 20,
+      vy: -sin * backSpd + (Math.random() - 0.5) * 20,
+      ttl: 0.4 + Math.random() * 0.4,
+      maxTtl: 0.8,
+      color: Math.random() < 0.2 ? '#ffffff' : '#00d4ff',
+      size: 1.2 + Math.random() * 1.5 * speedRatio,
+    });
+  }
 }
 
 function updateFleetMovement(state, dt) {

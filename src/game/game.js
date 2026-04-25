@@ -12,8 +12,11 @@ import { updateCombat } from '../systems/combat.js';
 import { updateBuild } from '../systems/build.js';
 import { updateEconomy } from '../systems/economy.js';
 import { updateWaves } from '../systems/waves.js';
+import { BUILDING_FOR_BODY } from '../world/bodies.js';
 
-export function createGame(canvas, hudContainer) {
+const BUILD_DURATION = 1.0; // matches build.js BUILD_DURATION
+
+export function createGame(canvas, hudContainer, net = null) {
   const camera = createCamera(canvas);
   const input = createInput(canvas);
   const { render } = createRenderer(canvas);
@@ -55,6 +58,11 @@ export function createGame(canvas, hudContainer) {
   function init() {
     initState();
     hud = createHud(hudContainer);
+
+    if (net) {
+      // net is already connected by the lobby — just wire up the tick handler
+      net.onTick((delta) => net.applyTick(delta, state));
+    }
   }
 
   // ─── Game lifecycle ───────────────────────────────────────────────────────
@@ -87,14 +95,111 @@ export function createGame(canvas, hudContainer) {
     }
 
     camera.applyScroll(input.mouse.scrollDelta);
-    updateOrbits(state.bodies, dt);
-    updateMovement(state, input, dt);
-    updateBuild(state, input, dt, performance.now() / 1000);
-    updateCombat(state, dt);
-    updateEconomy(state, dt);
-    updateWaves(state, dt);
+
+    if (net) {
+      updateMultiplayer(dt);
+    } else {
+      updateOrbits(state.bodies, dt);
+      updateMovement(state, input, dt);
+      updateBuild(state, input, dt, performance.now() / 1000);
+      updateCombat(state, dt);
+      updateEconomy(state, dt);
+      updateWaves(state, dt);
+    }
 
     input.flush();
+  }
+
+  // Multiplayer update: predict local movement, send inputs, manage build UI
+  function updateMultiplayer(dt) {
+    updateOrbits(state.bodies, dt);
+
+    // Predict local player movement at full 60 Hz — server only corrects hp
+    updateMovement(state, input, dt);
+
+    if (net.isOpen()) {
+      const pressed = {};
+      for (const code of ['Space', 'Tab', 'Digit1', 'Digit2']) {
+        if (input.wasPressed(code)) pressed[code] = true;
+      }
+      net.sendInput({ ...input.keys }, pressed);
+    }
+
+    updateBuildProgressUI(dt);
+  }
+
+  function updateBuildProgressUI(dt) {
+    const ship = state.playerShip;
+    if (!ship) return;
+
+    let overlappingBody = null;
+    let bestDist = Infinity;
+    for (const body of state.bodies) {
+      if (body.type === 'sun') continue;
+      const dist = Math.hypot(ship.x - body.x, ship.y - body.y);
+      if (dist <= body.radius + 52 && dist < bestDist) {
+        overlappingBody = body;
+        bestDist = dist;
+      }
+    }
+
+    const spaceHeld = input.keys['Space'];
+
+    if (state.buildPhase === 'holding') {
+      const stillOnBody = overlappingBody && overlappingBody.id === state.buildBodyId;
+      if (!spaceHeld || !stillOnBody) {
+        state.buildPhase = 'idle';
+        state.buildProgress = 0;
+        state.buildBodyId = null;
+        return;
+      }
+      state.buildProgress += dt / BUILD_DURATION;
+      if (state.buildProgress >= 1) {
+        if (state.buildType && net.isOpen()) {
+          net.sendBuildRequest(state.buildBodyId, state.buildType);
+        }
+        state.buildPhase = 'idle';
+        state.buildProgress = 0;
+        state.buildBodyId = null;
+      }
+      return;
+    }
+
+    state.buildBodyId = null;
+    state.buildProgress = 0;
+    state.buildType = null;
+    state.buildOptions = null;
+
+    if (!overlappingBody) { state.buildOptionIndex = 0; return; }
+
+    const body = overlappingBody;
+    const now = performance.now() / 1000;
+    const allowed = getAvailableTypes(body, now);
+    if (allowed.length === 0) return;
+
+    if (input.wasPressed('Digit1')) state.buildOptionIndex = 0;
+    if (input.wasPressed('Digit2') && allowed.length > 1) state.buildOptionIndex = 1;
+    if (input.wasPressed('Tab')) state.buildOptionIndex = ((state.buildOptionIndex || 0) + 1);
+
+    const idx = (((state.buildOptionIndex || 0) % allowed.length) + allowed.length) % allowed.length;
+    state.buildBodyId = body.id;
+    state.buildType = allowed[idx];
+    state.buildOptions = allowed;
+    state.buildOptionIdx = idx;
+
+    if (spaceHeld) {
+      state.buildPhase = 'holding';
+      state.buildProgress = dt / BUILD_DURATION;
+    }
+  }
+
+  function getAvailableTypes(body, now) {
+    const allowed = BUILDING_FOR_BODY[body.type] || [];
+    return allowed.filter(t => {
+      if (body.buildings.find(b => b.type === t)) return false;
+      const cd = (body.cooldowns && body.cooldowns[t]) || 0;
+      return now >= cd;
+    });
   }
 
   // ─── Render (rAF, passes alpha for future interpolation) ─────────────────
@@ -108,6 +213,10 @@ export function createGame(canvas, hudContainer) {
   // ─── Boot ─────────────────────────────────────────────────────────────────
 
   const loop = createLoop(update, renderFrame);
+
+  window.addEventListener('keydown', e => {
+    if (e.code === 'KeyR') restart();
+  });
 
   return {
     start() {

@@ -26,6 +26,8 @@ export function createState() {
     wrecks: [],        // { bodyId, timer } — bodies on rebuild cooldown
 
     nextId: 1,
+
+    remotePlayers: [],  // [{ id, x, y, heading, hp, maxHp }] — other players in multiplayer
   };
 }
 
