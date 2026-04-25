@@ -41,12 +41,14 @@ export function updateEconomy(state, dt) {
     pk.ttl -= dt;
     if (pk.ttl <= 0) { state.pickups.splice(i, 1); continue; }
 
-    // Pull toward player if within pull radius
+    // Pull toward player if within pull radius — ease-in: speed scales with proximity
     const pdx = player.x - pk.x;
     const pdy = player.y - pk.y;
     const pdist = Math.hypot(pdx, pdy);
     if (pdist < PICKUP_PULL_RADIUS && pdist > 0) {
-      const step = Math.min(PICKUP_PULL_SPEED * dt, pdist);
+      const t = 1 - pdist / PICKUP_PULL_RADIUS; // 0 at edge, 1 at player
+      const easedSpeed = PICKUP_PULL_SPEED * (t * t);
+      const step = Math.min(easedSpeed * dt, pdist);
       pk.x += (pdx / pdist) * step;
       pk.y += (pdy / pdist) * step;
     }

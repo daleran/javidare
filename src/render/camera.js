@@ -1,4 +1,7 @@
-const MAX_CAMERA_LEAD_PX = 10; // screen-pixel lead toward cursor
+const MAX_CAMERA_LEAD_PX = 10;
+const ZOOM_MIN = 0.3;
+const ZOOM_MAX = 2.5;
+const ZOOM_SPEED = 0.001;
 
 export function createCamera(canvas) {
   return {
@@ -9,16 +12,17 @@ export function createCamera(canvas) {
     zoom: 1,
     canvas,
 
-    // Call before updateMouseWorld each frame — uses raw screen coords, no world needed
-    follow(target, mouse) {
+    applyScroll(scrollDelta) {
+      if (scrollDelta === 0) return;
+      this.zoom *= 1 - scrollDelta * ZOOM_SPEED;
+      this.zoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, this.zoom));
+    },
+
+    follow(target) {
       this.x = target.x;
       this.y = target.y;
-      const sdx = mouse.screenX - window.innerWidth / 2;
-      const sdy = mouse.screenY - window.innerHeight / 2;
-      const sDist = Math.hypot(sdx, sdy);
-      const lead = sDist > 0 ? Math.min(sDist * 0.4, MAX_CAMERA_LEAD_PX) : 0;
-      this.leadX = sDist > 0 ? (sdx / sDist) * lead : 0;
-      this.leadY = sDist > 0 ? (sdy / sDist) * lead : 0;
+      this.leadX = 0;
+      this.leadY = 0;
     },
 
     worldToScreen(wx, wy) {
@@ -36,9 +40,15 @@ export function createCamera(canvas) {
     },
 
     applyTransform(ctx) {
-      ctx.translate(window.innerWidth / 2 + this.leadX, window.innerHeight / 2 + this.leadY);
-      ctx.scale(this.zoom, this.zoom);
-      ctx.translate(-this.x, -this.y);
+      const dpr = window.devicePixelRatio || 1;
+      const cx = window.innerWidth / 2 + this.leadX;
+      const cy = window.innerHeight / 2 + this.leadY;
+      ctx.setTransform(
+        dpr * this.zoom, 0,
+        0, dpr * this.zoom,
+        dpr * (cx - this.zoom * this.x),
+        dpr * (cy - this.zoom * this.y),
+      );
     },
   };
 }

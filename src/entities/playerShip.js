@@ -1,6 +1,6 @@
 export const PLAYER_HP = 100;
-export const PLAYER_SPEED = 280;       // max speed (world units/s)
-export const PLAYER_ACCEL = 420;       // acceleration (wu/s²)
+export const PLAYER_SPEED = 1000;      // max speed (world units/s)
+export const PLAYER_ACCEL = 620;       // acceleration (wu/s²)
 export const PLAYER_DAMPING = 0.88;    // per-tick velocity multiplier
 export const PLAYER_SIZE = 14;         // triangle half-size
 export const PLAYER_FIRE_RATE = 5;     // shots/sec
@@ -16,8 +16,10 @@ export function createPlayerShip(x, y) {
     x, y,
     vx: 0,
     vy: 0,
-    heading: 0,        // radians, pointing direction
+    heading: 0,
     fireCooldown: 0,
     autoFireTarget: null,
+    orbitBodyId: null,
+    thrustTime: 0,
   };
 }

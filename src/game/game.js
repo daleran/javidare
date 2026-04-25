@@ -32,8 +32,8 @@ export function createGame(canvas, hudContainer) {
     // Spawn player near home planet
     const home = state.bodies.find(b => b.isHome);
     state.playerShip = createPlayerShip(home.x + home.radius + 24, home.y);
-    camera.x = home.x;
-    camera.y = home.y;
+    camera.x = state.playerShip.x;
+    camera.y = state.playerShip.y;
 
     // Pre-built extractor on home planet for seed income
     const extId = nextId(state);
@@ -84,7 +84,7 @@ export function createGame(canvas, hudContainer) {
       return;
     }
 
-    input.updateMouseWorld(camera);
+    camera.applyScroll(input.mouse.scrollDelta);
     updateOrbits(state.bodies, dt);
     updateMovement(state, input, dt);
     updateBuild(state, input, dt, performance.now() / 1000);
@@ -98,8 +98,7 @@ export function createGame(canvas, hudContainer) {
   // ─── Render (rAF, passes alpha for future interpolation) ─────────────────
 
   function renderFrame() {
-    if (state.playerShip) camera.follow(state.playerShip, input.mouse);
-    input.updateMouseWorld(camera);
+    if (state.playerShip) camera.follow(state.playerShip);
     render(state, camera);
     if (hud) updateHud(hud, state, camera, restart, quit, resume);
   }
