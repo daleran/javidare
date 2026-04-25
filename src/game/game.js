@@ -98,10 +98,8 @@ export function createGame(canvas, hudContainer) {
   // ─── Render (rAF, passes alpha for future interpolation) ─────────────────
 
   function renderFrame() {
+    if (state.playerShip) camera.follow(state.playerShip, input.mouse);
     input.updateMouseWorld(camera);
-    if (state.playerShip && state.gameStatus === 'playing') {
-      camera.follow(state.playerShip, input.mouse, 1 / 60);
-    }
     render(state, camera);
     if (hud) updateHud(hud, state, camera, restart, quit, resume);
   }

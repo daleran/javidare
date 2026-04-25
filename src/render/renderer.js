@@ -1,3 +1,5 @@
+import { PICKUP_PULL_RADIUS } from '../systems/economy.js';
+
 // seeded RNG for deterministic starfield
 function seededRng(seed) {
   let s = seed;
@@ -203,6 +205,7 @@ export function createRenderer(canvas) {
     for (const e of state.enemies) drawEnemy(ctx, e);
 
     drawPlayerShip(ctx, state.playerShip);
+    drawPullRadius(ctx, state.playerShip);
 
     // Build progress arc around player
     if (state.buildPhase === 'holding') {
@@ -256,8 +259,8 @@ function drawOrbitRings(ctx, bodies) {
     const parent = byId[b.parentId];
     if (!parent) continue;
     ctx.strokeStyle = b.type === 'moon'
-      ? 'rgba(74,127,165,0.15)'
-      : 'rgba(74,127,165,0.2)';
+      ? 'rgba(74,127,165,0.38)'
+      : 'rgba(74,127,165,0.55)';
     ctx.beginPath();
     ctx.arc(parent.x, parent.y, b.orbitRadius, 0, Math.PI * 2);
     ctx.stroke();
@@ -472,6 +475,20 @@ function drawPlayerShip(ctx, ship) {
   ctx.restore();
 
   drawTriangle(ctx, ship.x, ship.y, 14, ship.heading, '#ffffff', 1.8);
+}
+
+function drawPullRadius(ctx, ship) {
+  if (!ship) return;
+  ctx.save();
+  ctx.globalAlpha = 0.18;
+  ctx.strokeStyle = '#ffe066';
+  ctx.lineWidth = 0.8;
+  ctx.setLineDash([3, 7]);
+  ctx.beginPath();
+  ctx.arc(ship.x, ship.y, PICKUP_PULL_RADIUS, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.restore();
 }
 
 function drawBuildArc(ctx, ship, progress) {

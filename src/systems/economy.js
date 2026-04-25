@@ -3,6 +3,8 @@ import { createFleetShip } from '../entities/fleetShip.js';
 import { nextId } from '../game/state.js';
 
 const PICKUP_COLLECT_RADIUS = 50;
+export const PICKUP_PULL_RADIUS = 160;
+const PICKUP_PULL_SPEED = 280;
 
 export function updateEconomy(state, dt) {
   if (state.gameStatus !== 'playing') return;
@@ -31,11 +33,24 @@ export function updateEconomy(state, dt) {
   }
 
   // Pickup collection: player or any frigate nearby auto-collects
-  const collectors = [state.playerShip, ...state.fleet];
+  // Player also pulls pickups within PICKUP_PULL_RADIUS toward itself
+  const player = state.playerShip;
+  const collectors = [player, ...state.fleet];
   for (let i = state.pickups.length - 1; i >= 0; i--) {
     const pk = state.pickups[i];
     pk.ttl -= dt;
     if (pk.ttl <= 0) { state.pickups.splice(i, 1); continue; }
+
+    // Pull toward player if within pull radius
+    const pdx = player.x - pk.x;
+    const pdy = player.y - pk.y;
+    const pdist = Math.hypot(pdx, pdy);
+    if (pdist < PICKUP_PULL_RADIUS && pdist > 0) {
+      const step = Math.min(PICKUP_PULL_SPEED * dt, pdist);
+      pk.x += (pdx / pdist) * step;
+      pk.y += (pdy / pdist) * step;
+    }
+
     let collected = false;
     for (const c of collectors) {
       if (Math.hypot(c.x - pk.x, c.y - pk.y) < PICKUP_COLLECT_RADIUS) {
