@@ -151,14 +151,16 @@ MVP: 3 enemy types, 5 waves + boss.
 |---|---|---|---|
 | **Skirmisher** | Low | Fast, strafes around target | Player ship > fleet |
 | **Bomber** | Medium | Slow, heavy damage, suicide-rams | Nearest building > player |
-| **Boss** (wave 6 only) | Very high | Multi-phase, spawns adds | Player ship |
+| **Miniboss** (wave 6 only) | High | Slow, durable, continuously spawns Skirmisher adds | Player ship |
+| **Add** (spawned by Miniboss) | Low | Identical to Skirmisher | Player ship > fleet |
 
 ### Wave structure
 
 - Waves spawn from **random edges of the world bounds**, flying inward.
 - Wave timer: 30s build-up → 45s combat. Next wave timer starts when the current wave's spawn budget is exhausted *and* 80% of spawned enemies are dead.
 - Wave N spawn budget scales: `base * (1 + 0.35 * (N-1))`.
-- Wave 6 = boss-only encounter.
+- Wave 6 = Miniboss encounter. The Miniboss spawns a Skirmisher add every ~8s until it dies; killing the Miniboss despawns any remaining adds. Win condition triggers on Miniboss death.
+- Future boss types (different behaviours, targeting priorities, spawn patterns) are designed as drop-in replacements — MVP ships only the miniboss+adds pattern.
 
 Win = boss defeated. Lose = player ship destroyed.
 
@@ -272,8 +274,8 @@ src/
 1. ~~**Visual style**~~ — **Resolved**: Homeworld tactical map aesthetic. Wireframe vectors, cyan/amber/steel-blue palette, monospace UI. See Visual Aesthetic section.
 2. ~~**Sun damage**~~ — **Resolved**: no damage. Sun is a solid collision boundary only.
 3. **Fleet cap 6** — is that the right feel? Easy to tune.
-4. **Boss design** — should boss be a single multi-phase unit, or a "miniboss + adds" assault? Currently single multi-phase.
-5. **Build cooldown on destroyed bodies** — prevents spam-rebuild abuse. 10s is a guess.
+4. ~~**Boss design**~~ — **Resolved**: Miniboss + Skirmisher adds. Miniboss death despawns adds and triggers win. Future boss types are drop-in variants.
+5. ~~**Build cooldown on destroyed bodies**~~ — **Resolved**: 10s cooldown confirmed.
 
 ---
 
