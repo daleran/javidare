@@ -273,9 +273,8 @@ src/
 
 1. ~~**Visual style**~~ — **Resolved**: Homeworld tactical map aesthetic. Wireframe vectors, cyan/amber/steel-blue palette, monospace UI. See Visual Aesthetic section.
 2. ~~**Sun damage**~~ — **Resolved**: no damage. Sun is a solid collision boundary only.
-3. **Fleet cap 6** — is that the right feel? Easy to tune.
-4. ~~**Boss design**~~ — **Resolved**: Miniboss + Skirmisher adds. Miniboss death despawns adds and triggers win. Future boss types are drop-in variants.
-5. ~~**Build cooldown on destroyed bodies**~~ — **Resolved**: 10s cooldown confirmed.
+3. ~~**Boss design**~~ — **Resolved**: Miniboss + Skirmisher adds. Miniboss death despawns adds and triggers win. Future boss types are drop-in variants.
+4. ~~**Build cooldown on destroyed bodies**~~ — **Resolved**: 10s cooldown confirmed.
 
 ---
 
