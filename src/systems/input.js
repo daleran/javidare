@@ -5,7 +5,7 @@ export function createInput(canvas) {
   const mouse = { screenX: 0, screenY: 0, worldX: 0, worldY: 0, scrollDelta: 0 };
 
   window.addEventListener('keydown', e => {
-    if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
+    if (['Space', 'Tab', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
       e.preventDefault();
     }
     if (!keys[e.code]) pressed.add(e.code);

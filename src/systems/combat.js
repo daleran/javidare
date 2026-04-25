@@ -7,6 +7,7 @@ import {
 } from '../entities/fleetShip.js';
 import {
   BUILDING_FIRE_RATE, BUILDING_FIRE_RANGE, BUILDING_PROJECTILE_DAMAGE, BUILDING_PROJECTILE_SPEED,
+  CRYO_RANGE, CRYO_SLOW_FACTOR, CRYO_MAX_SLOW,
 } from '../entities/building.js';
 import { ENEMY_DEFS } from '../entities/enemy.js';
 import { createProjectile } from '../entities/projectile.js';
@@ -94,11 +95,26 @@ export function updateCombat(state, dt) {
   }
 }
 
+function cryoSlowFactor(state, x, y) {
+  let total = 0;
+  const r2 = CRYO_RANGE * CRYO_RANGE;
+  for (const b of state.buildings) {
+    if (b.type !== 'cryoBattery') continue;
+    const d2 = (b.x - x) * (b.x - x) + (b.y - y) * (b.y - y);
+    if (d2 < r2) total += CRYO_SLOW_FACTOR;
+  }
+  return Math.min(CRYO_MAX_SLOW, total);
+}
+
 function updateEnemyAI(state, dt) {
   const now = state.waveTimer; // use as time reference for strafe
   for (let i = state.enemies.length - 1; i >= 0; i--) {
     const e = state.enemies[i];
     const def = ENEMY_DEFS[e.type];
+
+    // Cryo slow aura applies to this enemy's effective speed for this tick
+    const slow = cryoSlowFactor(state, e.x, e.y);
+    const speed = def.speed * (1 - slow);
 
     // Pick target — type-biased nearest-friendly
     let target = null;
@@ -125,21 +141,21 @@ function updateEnemyAI(state, dt) {
 
       if (dist > STRAFE_RANGE + 60) {
         // Chase
-        e.vx = (dx / dist) * def.speed;
-        e.vy = (dy / dist) * def.speed;
+        e.vx = (dx / dist) * speed;
+        e.vy = (dy / dist) * speed;
       } else if (dist > 80) {
         // Strafe
         const perpX = -dy / dist;
         const perpY = dx / dist;
         const chaseBlend = Math.max(0, (dist - 100) / STRAFE_RANGE);
-        e.vx = ((dx / dist) * chaseBlend + perpX * (1 - chaseBlend) * e.strafeDir) * def.speed;
-        e.vy = ((dy / dist) * chaseBlend + perpY * (1 - chaseBlend) * e.strafeDir) * def.speed;
+        e.vx = ((dx / dist) * chaseBlend + perpX * (1 - chaseBlend) * e.strafeDir) * speed;
+        e.vy = ((dy / dist) * chaseBlend + perpY * (1 - chaseBlend) * e.strafeDir) * speed;
       }
     } else if (e.type === 'bomber') {
       // Move straight at target
       if (dist > 0) {
-        e.vx = (dx / dist) * def.speed;
-        e.vy = (dy / dist) * def.speed;
+        e.vx = (dx / dist) * speed;
+        e.vy = (dy / dist) * speed;
       }
       // Ram damage on contact
       if (dist < BOMB_CONTACT) {
@@ -167,8 +183,8 @@ function updateEnemyAI(state, dt) {
     } else if (e.type === 'miniboss') {
       // Slow pursuit
       if (dist > 80 && dist > 0) {
-        e.vx = (dx / dist) * def.speed;
-        e.vy = (dy / dist) * def.speed;
+        e.vx = (dx / dist) * speed;
+        e.vy = (dy / dist) * speed;
       } else {
         e.vx *= 0.9;
         e.vy *= 0.9;
@@ -274,11 +290,13 @@ function killBuilding(state, index) {
     }
   }
 
-  // Mark body on rebuild cooldown
+  // Mark body on rebuild cooldown — only this slot (building type) is locked,
+  // other slot types on the same body remain buildable.
   const body = state.bodies.find(bd => bd.id === b.bodyId);
   if (body) {
-    body.building = null;
-    body.buildableAt = Date.now() / 1000 + 10; // current sim time + 10s
+    body.buildings = body.buildings.filter(bb => bb.id !== b.id);
+    body.cooldowns = body.cooldowns || {};
+    body.cooldowns[b.type] = (Date.now() / 1000) + 10;
     state.wrecks.push({ bodyId: b.bodyId, timer: 10 });
   }
 

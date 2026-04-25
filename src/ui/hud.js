@@ -117,9 +117,20 @@ export function updateHud(hud, state, camera, onRestart, onQuit, onResume) {
     hud.buildPrompt.style.display = 'block';
     hud.buildPrompt.style.transform = `translate(calc(${screen.x}px - 50%), ${screen.y}px)`;
     hud.buildPrompt.className = `hud-panel ${affordable ? 'affordable' : 'unaffordable'}`;
-    hud.buildPrompt.textContent = affordable
-      ? `HOLD SPACE — ${label} (${cost}¢)`
-      : `${label} (${cost}¢) — INSUFFICIENT FUNDS`;
+
+    const options = state.buildOptions || [state.buildType];
+    if (options.length > 1) {
+      const idx = state.buildOptionIdx || 0;
+      const altType = options[(idx + 1) % options.length];
+      const altLabel = BUILDING_LABEL[altType] || altType;
+      hud.buildPrompt.textContent = affordable
+        ? `HOLD SPACE — ${label} (${cost}¢)   |   TAB: ${altLabel}`
+        : `${label} (${cost}¢) — INSUFFICIENT FUNDS   |   TAB: ${altLabel}`;
+    } else {
+      hud.buildPrompt.textContent = affordable
+        ? `HOLD SPACE — ${label} (${cost}¢)`
+        : `${label} (${cost}¢) — INSUFFICIENT FUNDS`;
+    }
   } else {
     hud.buildPrompt.style.display = 'none';
   }

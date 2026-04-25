@@ -162,6 +162,49 @@ function drawShipyard(ctx, x, y, color) {
   ctx.strokeRect(x - 5, y - 5, 10, 10);
 }
 
+function drawCryoBattery(ctx, x, y, color) {
+  const s = 12;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1.5;
+  // Diamond
+  ctx.beginPath();
+  ctx.moveTo(x, y - s);
+  ctx.lineTo(x + s, y);
+  ctx.lineTo(x, y + s);
+  ctx.lineTo(x - s, y);
+  ctx.closePath();
+  ctx.stroke();
+  // Inner cross
+  ctx.beginPath();
+  ctx.moveTo(x - s * 0.45, y); ctx.lineTo(x + s * 0.45, y);
+  ctx.moveTo(x, y - s * 0.45); ctx.lineTo(x, y + s * 0.45);
+  ctx.stroke();
+}
+
+function drawFortress(ctx, x, y, color) {
+  const s = 17;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1.6;
+  // Octagon
+  ctx.beginPath();
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2 + Math.PI / 8;
+    const px = x + Math.cos(a) * s;
+    const py = y + Math.sin(a) * s;
+    i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+  ctx.stroke();
+  // Inner square
+  ctx.strokeRect(x - 6, y - 6, 12, 12);
+  // Heavy barrel
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.moveTo(x, y - 6);
+  ctx.lineTo(x, y - s - 8);
+  ctx.stroke();
+}
+
 // ─── Main render function ────────────────────────────────────────────────────
 
 export function createRenderer(canvas) {
@@ -272,9 +315,12 @@ function drawOrbitRings(ctx, bodies) {
   for (const b of bodies) byId[b.id] = b;
   for (const b of bodies) {
     if (!b.parentId || b.orbitRadius <= 0) continue;
+    // Skip orbit rings for individual asteroids — belts contain many bodies on
+    // near-identical orbits, and stacking those rings produces a noisy stripe.
+    if (b.type === 'asteroid') continue;
     const parent = byId[b.parentId];
     if (!parent) continue;
-    ctx.strokeStyle = b.type === 'moon'
+    ctx.strokeStyle = (b.type === 'moon' || b.type === 'ice_moon')
       ? 'rgba(74,127,165,0.38)'
       : 'rgba(74,127,165,0.55)';
     ctx.beginPath();
@@ -319,12 +365,50 @@ function drawBodies(ctx, bodies) {
       drawSun(ctx, b);
     } else if (b.type === 'gas') {
       drawGasGiant(ctx, b);
+    } else if (b.type === 'ringed_giant') {
+      drawRingedGiant(ctx, b);
     } else if (b.type === 'asteroid') {
       drawAsteroid(ctx, b);
+    } else if (b.type === 'ice_moon') {
+      drawIceMoon(ctx, b);
     } else {
       drawPlanet(ctx, b);
     }
   }
+}
+
+function drawRingedGiant(ctx, b) {
+  drawGasGiant(ctx, b);
+  ctx.save();
+  ctx.translate(b.x, b.y);
+  ctx.rotate(0.4);
+  ctx.strokeStyle = 'rgba(180,200,220,0.55)';
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, b.radius * 1.85, b.radius * 0.45, 0, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.strokeStyle = 'rgba(180,200,220,0.32)';
+  ctx.lineWidth = 0.8;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, b.radius * 1.55, b.radius * 0.38, 0, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawIceMoon(ctx, b) {
+  ctx.fillStyle = b.color;
+  ctx.beginPath();
+  ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(220,240,255,0.85)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.arc(b.x, b.y, b.radius + 2, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.fillStyle = 'rgba(255,255,255,0.32)';
+  ctx.beginPath();
+  ctx.arc(b.x - b.radius * 0.35, b.y - b.radius * 0.4, b.radius * 0.4, 0, Math.PI * 2);
+  ctx.fill();
 }
 
 function drawSun(ctx, b) {
@@ -430,8 +514,21 @@ function drawWrecks(ctx, wrecks, bodies) {
 }
 
 function drawBuildings(ctx, buildings) {
+  // Cryo aura rings (rendered behind buildings so the icon stays crisp)
+  ctx.save();
+  ctx.strokeStyle = 'rgba(168,210,232,0.18)';
+  ctx.lineWidth = 0.7;
+  ctx.setLineDash([4, 8]);
   for (const b of buildings) {
-    // HP-based opacity
+    if (b.type !== 'cryoBattery') continue;
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, 260, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.setLineDash([]);
+  ctx.restore();
+
+  for (const b of buildings) {
     const alpha = 0.5 + 0.5 * (b.hp / b.maxHp);
     ctx.save();
     ctx.globalAlpha = alpha;
@@ -440,6 +537,8 @@ function drawBuildings(ctx, buildings) {
       case 'lightTurret':    drawLightTurret(ctx, b.x, b.y, '#00d4ff', b.heading); break;
       case 'turretPlatform': drawTurretPlatform(ctx, b.x, b.y, '#00d4ff', b.heading); break;
       case 'shipyard':       drawShipyard(ctx, b.x, b.y, '#00d4ff'); break;
+      case 'cryoBattery':    drawCryoBattery(ctx, b.x, b.y, '#a8d2e8'); break;
+      case 'fortress':       drawFortress(ctx, b.x, b.y, '#00d4ff'); break;
     }
     ctx.restore();
   }
