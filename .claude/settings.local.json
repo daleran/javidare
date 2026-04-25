@@ -5,7 +5,6 @@
       "Bash(git add *)",
       "Bash(git commit *)",
       "Bash(git push *)",
-<<<<<<< HEAD
       "Bash(xargs grep *)",
       "Bash(node --input-type=module --experimental-vm-modules)",
       "Bash(git *)"
