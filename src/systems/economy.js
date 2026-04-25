@@ -3,8 +3,9 @@ import { createFleetShip } from '../entities/fleetShip.js';
 import { nextId } from '../game/state.js';
 
 const PICKUP_COLLECT_RADIUS = 50;
-export const PICKUP_PULL_RADIUS = 160;
+export const PICKUP_PULL_RADIUS = 480;
 const PICKUP_PULL_SPEED = 280;
+const PICKUP_VACUUM_SPEED = 800;
 
 export function updateEconomy(state, dt) {
   if (state.gameStatus !== 'playing') return;
@@ -38,14 +39,17 @@ export function updateEconomy(state, dt) {
   const collectors = [player, ...state.fleet];
   for (let i = state.pickups.length - 1; i >= 0; i--) {
     const pk = state.pickups[i];
-    pk.ttl -= dt;
-    if (pk.ttl <= 0) { state.pickups.splice(i, 1); continue; }
 
-    // Pull toward player if within pull radius — ease-in: speed scales with proximity
+    // Pull toward player. Vacuum mode (post-wave) ignores radius and uses constant speed;
+    // normal mode pulls only within PICKUP_PULL_RADIUS with ease-in by proximity.
     const pdx = player.x - pk.x;
     const pdy = player.y - pk.y;
     const pdist = Math.hypot(pdx, pdy);
-    if (pdist < PICKUP_PULL_RADIUS && pdist > 0) {
+    if (pk.vacuum && pdist > 0) {
+      const step = Math.min(PICKUP_VACUUM_SPEED * dt, pdist);
+      pk.x += (pdx / pdist) * step;
+      pk.y += (pdy / pdist) * step;
+    } else if (pdist < PICKUP_PULL_RADIUS && pdist > 0) {
       const t = 1 - pdist / PICKUP_PULL_RADIUS; // 0 at edge, 1 at player
       const easedSpeed = PICKUP_PULL_SPEED * (t * t);
       const step = Math.min(easedSpeed * dt, pdist);

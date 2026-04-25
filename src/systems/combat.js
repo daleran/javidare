@@ -381,7 +381,6 @@ function spawnDropPickup(state, enemy) {
     x: enemy.x + (Math.random() - 0.5) * 20,
     y: enemy.y + (Math.random() - 0.5) * 20,
     value,
-    ttl: 12,
   });
 }
 
