@@ -1,4 +1,4 @@
-# Javidare — Future Features & Backlog
+# Solar Imperium — Future Features & Backlog
 
 This file tracks features and ideas that are **not yet implemented**. Remove items when they ship.
 

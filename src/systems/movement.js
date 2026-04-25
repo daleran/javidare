@@ -19,9 +19,9 @@ export function updateMovement(state, input, dt) {
   const sin = Math.sin(ship.heading);
   const thrusting = keys['KeyW'] || keys['KeyS'];
 
-  // Ease-in: thrustTime ramps 0→1 over ~0.3 s while thrusting, resets instantly on release
-  ship.thrustTime = thrusting ? Math.min(1, ship.thrustTime + dt * 3.5) : 0;
-  const eased = ship.thrustTime * ship.thrustTime; // quadratic ease-in
+  // Ease-in: thrustTime ramps 0→1 over 1.5 s while thrusting, resets instantly on release
+  ship.thrustTime = thrusting ? Math.min(1, ship.thrustTime + dt) : 0;
+  const eased = ship.thrustTime; // linear ease-in
 
   let thrustX = 0, thrustY = 0;
   if (keys['KeyW']) { thrustX = cos; thrustY = sin; }

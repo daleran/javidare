@@ -63,21 +63,31 @@ export function createNetClient(wsUrl) {
 
     // Player ships
     const localId = playerId;
-    const remotes = [];
-    for (const [id, p] of Object.entries(delta.players || {})) {
+    const remotePlayers = [];
+    const playersDelta = delta.players || {};
+    for (const [id, p] of Object.entries(playersDelta)) {
       if (id === localId) {
-        // Position is predicted locally at 60 Hz — only sync combat state from server
         if (state.playerShip) {
+          state.playerShip.x = p.x;
+          state.playerShip.y = p.y;
+          state.playerShip.vx = p.vx;
+          state.playerShip.vy = p.vy;
+          state.playerShip.heading = p.heading;
           state.playerShip.hp = p.hp;
           state.playerShip.maxHp = p.maxHp;
         } else {
           state.playerShip = { ...p, id };
         }
       } else {
-        remotes.push({ id, ...p });
+        remotePlayers.push({ id, ...p });
       }
     }
-    state.remotePlayers = remotes;
+    state.remotePlayers = remotePlayers;
+
+    // If local player is absent from the tick, their ship was destroyed server-side
+    if (localId !== null && !(localId in playersDelta)) {
+      state.playerShip = null;
+    }
 
     // Overwrite simulation arrays from server
     state.fleet = delta.fleet || [];

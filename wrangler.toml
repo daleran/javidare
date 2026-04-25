@@ -1,4 +1,4 @@
-name = "javidare"
+name = "solar_imperium"
 main = "server/worker.js"
 compatibility_date = "2024-09-23"
 

@@ -1,4 +1,4 @@
-# Javidare Multiplayer — Server Spec
+# Solar Imperium Multiplayer — Server Spec
 
 ## Overview
 

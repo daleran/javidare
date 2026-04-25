@@ -13,70 +13,54 @@ import { BUILDING_FOR_BODY, BUILDING_COST } from '../src/world/bodies.js';
 const TICK_RATE = 20;           // Hz
 const TICK_MS = 1000 / TICK_RATE;
 const TICK_DT = 1 / TICK_RATE;
+const CLIENT_HZ = 60;           // client simulation rate — server sub-steps to match
 const MAX_PLAYERS = 2;
 const TURN_SPEED = 3.2;
 const FOLLOW_ENTER_RADIUS = 2.8;
 const WORLD_HALF = 4400;
 
 export class GameRoom {
-  constructor(state, env) {
-    this.ctx = state;              // DurableObjectState — acceptWebSocket lives here
-    this.storage = state.storage;  // DurableObjectStorage — setAlarm, get/put live here
-    this.sessions = new Map();     // playerId → WebSocket (in-memory; rebuilt on first message)
+  constructor(roomId, onEmpty) {
+    this.roomId = roomId;
+    this.onEmpty = onEmpty;     // called when last player leaves so server can clean up
+    this.sessions = new Map();  // playerId → WebSocket
     this.inputBuffers = new Map(); // playerId → { keys, pressed }
     this.gameState = null;
     this.tick = 0;
     this.running = false;
+    this.tickInterval = null;
   }
 
-  async fetch(request) {
-    const url = new URL(request.url);
-
-    if (url.pathname === '/init') {
-      return new Response('ok');
-    }
-
-    if (url.pathname === '/info') {
-      return new Response(JSON.stringify({ players: this.ctx.getWebSockets().length }), {
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
-
-    if (request.headers.get('Upgrade') === 'websocket') {
-      return this.handleWebSocket(request);
-    }
-
-    return new Response('Not found', { status: 404 });
+  playerCount() {
+    return this.sessions.size;
   }
 
-  handleWebSocket(request) {
-    // Use ctx.getWebSockets() for accurate count — sessions Map may be stale after hibernation
-    if (this.ctx.getWebSockets().length >= MAX_PLAYERS) {
-      const pair = new WebSocketPair();
-      pair[1].accept();
-      pair[1].send(JSON.stringify({ type: 'error', reason: 'room_full' }));
-      pair[1].close(1008, 'room_full');
-      return new Response(null, { status: 101, webSocket: pair[0] });
-    }
-
-    const pair = new WebSocketPair();
-    const [client, server] = Object.values(pair);
-    this.ctx.acceptWebSocket(server);  // hibernation-compatible accept
-    return new Response(null, { status: 101, webSocket: client });
-  }
-
-  async webSocketMessage(ws, message) {
-    let msg;
-    try { msg = JSON.parse(message); } catch { return; }
-
-    const playerId = this.playerIdFor(ws);
-
-    if (msg.type === 'join') {
-      await this.handleJoin(ws, msg);
+  handleWebSocket(ws) {
+    if (this.sessions.size >= MAX_PLAYERS) {
+      ws.send(JSON.stringify({ type: 'error', reason: 'room_full' }));
+      ws.close(1008, 'room_full');
       return;
     }
 
-    if (!playerId) return; // must join first
+    ws.on('message', (data) => {
+      let msg;
+      try { msg = JSON.parse(data.toString()); } catch { return; }
+      this.webSocketMessage(ws, msg);
+    });
+
+    ws.on('close', () => this.webSocketClose(ws));
+    ws.on('error', () => this.webSocketClose(ws));
+  }
+
+  webSocketMessage(ws, msg) {
+    const playerId = this.playerIdFor(ws);
+
+    if (msg.type === 'join') {
+      this.handleJoin(ws, msg);
+      return;
+    }
+
+    if (!playerId) return;
 
     if (msg.type === 'input') {
       this.inputBuffers.set(playerId, {
@@ -92,7 +76,7 @@ export class GameRoom {
     }
   }
 
-  async webSocketClose(ws) {
+  webSocketClose(ws) {
     const playerId = this.playerIdFor(ws);
     if (!playerId) return;
 
@@ -105,13 +89,10 @@ export class GameRoom {
 
     this.broadcast({ type: 'player_left', playerId });
 
-    if (this.ctx.getWebSockets().length === 0) {
-      this.running = false;
+    if (this.sessions.size === 0) {
+      this.stopLoop();
+      if (this.onEmpty) this.onEmpty();
     }
-  }
-
-  async webSocketError(ws) {
-    await this.webSocketClose(ws);
   }
 
   playerIdFor(ws) {
@@ -121,8 +102,8 @@ export class GameRoom {
     return null;
   }
 
-  async handleJoin(ws, msg) {
-    const playerId = msg.playerId || `p${this.ctx.getWebSockets().length}`;
+  handleJoin(ws, msg) {
+    const playerId = msg.playerId || `p${this.sessions.size}`;
 
     if (!this.gameState) {
       this.initGameState();
@@ -131,7 +112,6 @@ export class GameRoom {
     this.sessions.set(playerId, ws);
     this.inputBuffers.set(playerId, { keys: {}, pressed: {} });
 
-    // Spawn the player ship near home
     const home = this.gameState.bodies.find(b => b.isHome);
     const angle = Math.random() * Math.PI * 2;
     const spawnX = home.x + Math.cos(angle) * (home.radius + 30);
@@ -144,15 +124,13 @@ export class GameRoom {
       this.gameState.leaderPlayerId = playerId;
     }
 
-    ws.send(JSON.stringify({ type: 'joined', playerId, roomId: 'room' }));
+    ws.send(JSON.stringify({ type: 'joined', playerId, roomId: this.roomId }));
     this.broadcast({ type: 'player_joined', playerId }, ws);
 
-    // Send initial state immediately
     ws.send(JSON.stringify({ type: 'tick', tick: this.tick, ...this.buildDelta() }));
 
     if (!this.running) {
-      this.running = true;
-      await this.storage.setAlarm(Date.now() + TICK_MS);
+      this.startLoop();
     }
   }
 
@@ -164,7 +142,6 @@ export class GameRoom {
 
     this.gameState.bodies = initBodies();
 
-    // Pre-built extractor on home planet for seed income
     const home = this.gameState.bodies.find(b => b.isHome);
     const extId = nextId(this.gameState);
     const extractor = createBuilding(extId, 'extractor', home.id, home.x, home.y);
@@ -179,14 +156,18 @@ export class GameRoom {
     this.gameState.buildAffordable = false;
   }
 
-  async alarm() {
-    if (!this.running || this.ctx.getWebSockets().length === 0) {
-      this.running = false;
-      return;
-    }
+  startLoop() {
+    if (this.running) return;
+    this.running = true;
+    this.tickInterval = setInterval(() => this.runTick(), TICK_MS);
+  }
 
-    this.runTick();
-    await this.storage.setAlarm(Date.now() + TICK_MS);
+  stopLoop() {
+    this.running = false;
+    if (this.tickInterval) {
+      clearInterval(this.tickInterval);
+      this.tickInterval = null;
+    }
   }
 
   runTick() {
@@ -198,7 +179,6 @@ export class GameRoom {
     updateOrbits(gs.bodies, TICK_DT);
     this.tickAllPlayerMovement(TICK_DT);
 
-    // Shim playerShip for systems that still reference it (fleet movement, home heal)
     const leaderShip = gs.players[gs.leaderPlayerId] || Object.values(gs.players)[0] || null;
     gs.playerShip = leaderShip;
 
@@ -206,25 +186,26 @@ export class GameRoom {
     updateEconomy(gs, TICK_DT);
     updateWaves(gs, TICK_DT);
 
-    // Sync building positions to bodies (economy does this, but keep ship positions current)
     for (const bldg of gs.buildings) {
       const body = gs.bodies.find(b => b.id === bldg.bodyId);
       if (body) { bldg.x = body.x; bldg.y = body.y; }
     }
 
-    const delta = { type: 'tick', tick: this.tick, ...this.buildDelta() };
-    this.broadcast(delta);
+    this.broadcast({ type: 'tick', tick: this.tick, ...this.buildDelta() });
   }
 
   tickAllPlayerMovement(dt) {
     const gs = this.gameState;
+    const subSteps = Math.round(CLIENT_HZ * dt); // e.g. 3 sub-steps of 1/60 per 1/20 s tick
+    const subDt = dt / subSteps;
 
     for (const [playerId, ship] of Object.entries(gs.players)) {
       const input = this.inputBuffers.get(playerId) || { keys: {}, pressed: {} };
-      tickShipMovement(ship, input.keys, gs.bodies, dt);
+      for (let i = 0; i < subSteps; i++) {
+        tickShipMovement(ship, input.keys, gs.bodies, subDt);
+      }
     }
 
-    // Fleet follows leader
     const leader = gs.players[gs.leaderPlayerId] || Object.values(gs.players)[0];
     if (leader) {
       tickFleetMovement(gs.fleet, leader, dt);
@@ -275,7 +256,7 @@ export class GameRoom {
     const gs = this.gameState;
     return {
       players:     Object.fromEntries(
-        Object.entries(gs.players).map(([id, s]) => [id, { x: s.x, y: s.y, heading: s.heading, hp: s.hp, maxHp: s.maxHp }])
+        Object.entries(gs.players).map(([id, s]) => [id, { x: s.x, y: s.y, vx: s.vx, vy: s.vy, heading: s.heading, hp: s.hp, maxHp: s.maxHp }])
       ),
       fleet:       gs.fleet.map(f => ({ id: f.id, x: f.x, y: f.y, heading: f.heading, hp: f.hp })),
       enemies:     gs.enemies.map(e => ({ id: e.id, type: e.type, x: e.x, y: e.y, heading: e.heading, hp: e.hp, maxHp: e.maxHp })),
@@ -302,7 +283,7 @@ export class GameRoom {
 
   broadcast(msg, excludeWs = null) {
     const text = typeof msg === 'string' ? msg : JSON.stringify(msg);
-    for (const ws of this.ctx.getWebSockets()) {
+    for (const ws of this.sessions.values()) {
       if (ws !== excludeWs) ws.send(text);
     }
   }
@@ -333,7 +314,6 @@ function tickShipMovement(ship, keys, bodies, dt) {
     ship.vy = ship.vy / spd * PLAYER_SPEED;
   }
 
-  // Planet follow
   if (!keys.KeyW && !keys.KeyS) {
     for (const body of bodies) {
       if (body.type === 'sun') continue;

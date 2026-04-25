@@ -12,7 +12,7 @@ import { updateCombat } from '../systems/combat.js';
 import { updateBuild } from '../systems/build.js';
 import { updateEconomy } from '../systems/economy.js';
 import { updateWaves } from '../systems/waves.js';
-import { BUILDING_FOR_BODY } from '../world/bodies.js';
+import { BUILDING_FOR_BODY, BUILDING_COST } from '../world/bodies.js';
 
 const BUILD_DURATION = 1.0; // matches build.js BUILD_DURATION
 
@@ -114,8 +114,8 @@ export function createGame(canvas, hudContainer, net = null) {
   function updateMultiplayer(dt) {
     updateOrbits(state.bodies, dt);
 
-    // Predict local player movement at full 60 Hz — server only corrects hp
-    updateMovement(state, input, dt);
+    // Predict local player movement at full 60 Hz — skip if ship is destroyed
+    if (state.playerShip) updateMovement(state, input, dt);
 
     if (net.isOpen()) {
       const pressed = {};
@@ -182,12 +182,15 @@ export function createGame(canvas, hudContainer, net = null) {
     if (input.wasPressed('Tab')) state.buildOptionIndex = ((state.buildOptionIndex || 0) + 1);
 
     const idx = (((state.buildOptionIndex || 0) % allowed.length) + allowed.length) % allowed.length;
+    const buildingType = allowed[idx];
     state.buildBodyId = body.id;
-    state.buildType = allowed[idx];
+    state.buildType = buildingType;
     state.buildOptions = allowed;
     state.buildOptionIdx = idx;
+    state.buildCost = BUILDING_COST[buildingType];
+    state.buildAffordable = state.wallet >= state.buildCost;
 
-    if (spaceHeld) {
+    if (spaceHeld && state.buildAffordable) {
       state.buildPhase = 'holding';
       state.buildProgress = dt / BUILD_DURATION;
     }

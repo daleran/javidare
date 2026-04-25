@@ -56,9 +56,7 @@ export function updateCombat(state, dt) {
         if (Math.hypot(p.x - ship.x, p.y - ship.y) < 14) {
           ship.hp -= p.damage;
           state.projectiles.splice(i, 1);
-          if (ship.hp <= 0 && getAllPlayerShips(state).every(s => s.hp <= 0)) {
-            state.gameStatus = 'gameover';
-          }
+          if (ship.hp <= 0) killPlayerShip(state, ship);
           hitPlayer = true;
           break;
         }
@@ -177,9 +175,7 @@ function updateEnemyAI(state, dt) {
       if (dist < BOMB_CONTACT) {
         if (getAllPlayerShips(state).includes(target)) {
           target.hp -= def.ramDamage;
-          if (target.hp <= 0 && getAllPlayerShips(state).every(s => s.hp <= 0)) {
-            state.gameStatus = 'gameover';
-          }
+          if (target.hp <= 0) killPlayerShip(state, target);
         } else {
           const fIdx = state.fleet.indexOf(target);
           if (fIdx >= 0) {
@@ -277,6 +273,19 @@ function killEnemy(state, index) {
   }
 }
 
+function killPlayerShip(state, ship) {
+  spawnDeathFx(state, ship.x, ship.y, '#00d4ff');
+
+  if (state.players) {
+    delete state.players[ship.id];
+    if (state.playerShip === ship) state.playerShip = null;
+    if (Object.keys(state.players).length === 0) state.gameStatus = 'gameover';
+  } else {
+    state.playerShip = null;
+    state.gameStatus = 'gameover';
+  }
+}
+
 function killFrigate(state, index) {
   const f = state.fleet[index];
   spawnDeathFx(state, f.x, f.y, '#00d4ff');
@@ -313,14 +322,9 @@ function killBuilding(state, index) {
     }
   }
 
-  // Mark body on rebuild cooldown — only this slot (building type) is locked,
-  // other slot types on the same body remain buildable.
   const body = state.bodies.find(bd => bd.id === b.bodyId);
   if (body) {
     body.buildings = body.buildings.filter(bb => bb.id !== b.id);
-    body.cooldowns = body.cooldowns || {};
-    body.cooldowns[b.type] = (Date.now() / 1000) + 10;
-    state.wrecks.push({ bodyId: b.bodyId, timer: 10 });
   }
 
   state.buildings.splice(index, 1);
@@ -354,6 +358,29 @@ function nearestEnemy(state, x, y, range) {
   return best;
 }
 
+// Returns the angle to fire at to intercept a moving target, or direct angle if no solution.
+function aimLead(sx, sy, target, projSpeed) {
+  const dx = target.x - sx;
+  const dy = target.y - sy;
+  const tvx = target.vx || 0;
+  const tvy = target.vy || 0;
+  const a = tvx * tvx + tvy * tvy - projSpeed * projSpeed;
+  const b = 2 * (dx * tvx + dy * tvy);
+  const c = dx * dx + dy * dy;
+  let t = 0;
+  if (Math.abs(a) < 1e-6) {
+    t = b !== 0 ? -c / b : 0;
+  } else {
+    const disc = b * b - 4 * a * c;
+    if (disc >= 0) {
+      const t1 = (-b - Math.sqrt(disc)) / (2 * a);
+      const t2 = (-b + Math.sqrt(disc)) / (2 * a);
+      t = t1 > 0 ? t1 : t2 > 0 ? t2 : 0;
+    }
+  }
+  return Math.atan2(dy + tvy * t, dx + tvx * t);
+}
+
 function playerAutofire(state, dt) {
   for (const ship of getAllPlayerShips(state)) {
     ship.fireCooldown -= dt;
@@ -361,7 +388,7 @@ function playerAutofire(state, dt) {
     const target = nearestEnemy(state, ship.x, ship.y, PLAYER_FIRE_RANGE);
     if (!target) continue;
     ship.fireCooldown = 1 / PLAYER_FIRE_RATE;
-    const angle = Math.atan2(target.y - ship.y, target.x - ship.x);
+    const angle = aimLead(ship.x, ship.y, target, PLAYER_PROJECTILE_SPEED);
     state.projectiles.push(createProjectile(ship.x, ship.y, angle, PLAYER_PROJECTILE_SPEED, PLAYER_PROJECTILE_DAMAGE, 'friendly'));
   }
 }
@@ -373,7 +400,7 @@ function fleetAutofire(state, dt) {
     const target = nearestEnemy(state, frigate.x, frigate.y, FLEET_FIRE_RANGE);
     if (!target) continue;
     frigate.fireCooldown = 1 / FLEET_FIRE_RATE;
-    const angle = Math.atan2(target.y - frigate.y, target.x - frigate.x);
+    const angle = aimLead(frigate.x, frigate.y, target, FLEET_PROJECTILE_SPEED);
     state.projectiles.push(createProjectile(frigate.x, frigate.y, angle, FLEET_PROJECTILE_SPEED, FLEET_PROJECTILE_DAMAGE, 'friendly'));
   }
 }

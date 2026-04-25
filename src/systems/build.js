@@ -23,23 +23,28 @@ export function updateBuild(state, input, dt, now) {
 
   const ship = state.playerShip;
 
-  // Find the closest body the ship is overlapping (multiple bodies can be near)
+  // overlappingBody: closest body in range (used to cancel holds when player drifts away)
+  // buildTarget: closest body in range that actually has options (used for idle-phase prompt)
   let overlappingBody = null;
+  let buildTarget = null;
   let bestDist = Infinity;
+  let bestBuildDist = Infinity;
   for (const body of state.bodies) {
     if (body.type === 'sun') continue;
     const dist = Math.hypot(ship.x - body.x, ship.y - body.y);
-    if (dist <= body.radius + 12 + BUILD_OVERLAP && dist < bestDist) {
-      overlappingBody = body;
-      bestDist = dist;
+    if (dist <= body.radius + 12 + BUILD_OVERLAP) {
+      if (dist < bestDist) { overlappingBody = body; bestDist = dist; }
+      const opts = availableTypes(body, now);
+      if (opts.length > 0 && dist < bestBuildDist) { buildTarget = body; bestBuildDist = dist; }
     }
   }
 
   const spaceHeld = input.keys['Space'];
 
   if (state.buildPhase === 'holding') {
-    const stillOnBody = overlappingBody && overlappingBody.id === state.buildBodyId;
-    if (!spaceHeld || !stillOnBody) {
+    const buildBody = state.bodies.find(b => b.id === state.buildBodyId);
+    const stillInRange = buildBody && Math.hypot(ship.x - buildBody.x, ship.y - buildBody.y) <= buildBody.radius + 12 + BUILD_OVERLAP;
+    if (!spaceHeld || !stillInRange) {
       state.buildPhase = 'idle';
       state.buildProgress = 0;
       state.buildBodyId = null;
@@ -58,13 +63,12 @@ export function updateBuild(state, input, dt, now) {
   state.buildType = null;
   state.buildOptions = null;
 
-  if (!overlappingBody) {
+  if (!buildTarget) {
     state.buildOptionIndex = 0;
     return;
   }
-  const body = overlappingBody;
+  const body = buildTarget;
   const options = availableTypes(body, now);
-  if (options.length === 0) return;
 
   // Cycle option index when the player presses 1/2 or Tab
   if (input.wasPressed && input.wasPressed('Digit1')) state.buildOptionIndex = 0;
@@ -118,4 +122,30 @@ function completeBuild(state, now) {
   state.buildPhase = 'idle';
   state.buildProgress = 0;
   state.buildBodyId = null;
+  state.buildType = null;
+  state.buildOptions = null;
+
+  // Pre-populate next build target so there's no one-frame gap that causes prompt flicker
+  const ship = state.playerShip;
+  let nextBody = null;
+  let bestNextDist = Infinity;
+  for (const b of state.bodies) {
+    if (b.type === 'sun') continue;
+    const dist = Math.hypot(ship.x - b.x, ship.y - b.y);
+    if (dist <= b.radius + 12 + BUILD_OVERLAP) {
+      const opts = availableTypes(b, now);
+      if (opts.length > 0 && dist < bestNextDist) { nextBody = b; bestNextDist = dist; }
+    }
+  }
+  if (nextBody) {
+    const options = availableTypes(nextBody, now);
+    const idx = (((state.buildOptionIndex || 0) % options.length) + options.length) % options.length;
+    const buildingType = options[idx];
+    state.buildBodyId = nextBody.id;
+    state.buildCost = BUILDING_COST[buildingType];
+    state.buildType = buildingType;
+    state.buildOptions = options;
+    state.buildOptionIdx = idx;
+    state.buildAffordable = state.wallet >= BUILDING_COST[buildingType];
+  }
 }

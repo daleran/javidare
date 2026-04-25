@@ -46,7 +46,7 @@ function showLobbyScreen() {
         background:#050810;font-family:monospace;color:#aac8e0;
         gap:20px;z-index:1000;
       ">
-        <div style="font-size:28px;letter-spacing:4px;color:#00d4ff;margin-bottom:8px">JAVIDARE</div>
+        <div style="font-size:28px;letter-spacing:4px;color:#00d4ff;margin-bottom:8px">SOLAR IMPERIUM</div>
         <button id="lb-solo" style="${btnStyle('#00d4ff')}">SOLO</button>
         <button id="lb-new"  style="${btnStyle('#00d4ff')}">MULTIPLAYER — NEW ROOM</button>
         <div style="display:flex;gap:8px;align-items:center">

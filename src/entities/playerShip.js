@@ -1,7 +1,7 @@
 export const PLAYER_HP = 100;
 export const HOME_HEAL_RADIUS = 100;  // world units from home planet center
 export const HOME_HEAL_RATE = 8;      // HP/s
-export const PLAYER_SPEED = 1000;     // max speed (world units/s)
+export const PLAYER_SPEED = 2000;     // max speed (world units/s)
 export const PLAYER_ACCEL = 620;      // acceleration (wu/s²)
 export const PLAYER_DAMPING = 0.88;    // per-tick velocity multiplier
 export const PLAYER_SIZE = 14;         // triangle half-size
