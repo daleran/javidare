@@ -1,5 +1,5 @@
-import { EXTRACTOR_BASE_INCOME } from '../entities/building.js';
-import { createFleetShip } from '../entities/fleetShip.js';
+import { EXTRACTOR_BASE_INCOME, SHIPYARD_RESPAWN_TIME } from '../entities/building.js';
+import { createFleetShip, FLEET_COST } from '../entities/fleetShip.js';
 import { nextId } from '../game/state.js';
 
 const PICKUP_COLLECT_RADIUS = 50;
@@ -68,22 +68,25 @@ export function updateEconomy(state, dt) {
     if (collected) state.pickups.splice(i, 1);
   }
 
-  // Shipyard fleet replenishment
+  // Shipyard fleet replenishment — serial per yard (one frigate at a time), costs FLEET_COST
   for (const bldg of state.buildings) {
     if (bldg.type !== 'shipyard') continue;
-    for (let si = 0; si < bldg.slots.length; si++) {
-      const slot = bldg.slots[si];
-      if (slot.occupied) continue;
-      slot.respawnTimer -= dt;
-      if (slot.respawnTimer <= 0) {
-        const spawned = spawnFrigate(state, bldg, si);
-        if (spawned) {
-          slot.occupied = true;
-        } else {
-          slot.respawnTimer = 2; // retry after 2s if fleet is at cap
-        }
-      }
+
+    const slotIdx = bldg.slots.findIndex(s => !s.occupied);
+    if (slotIdx === -1) continue;
+
+    if (bldg.respawnTimer > 0) {
+      bldg.respawnTimer = Math.max(0, bldg.respawnTimer - dt);
     }
+    if (bldg.respawnTimer > 0) continue;
+
+    if (state.fleet.length >= state.fleetCap) continue;
+    if (state.wallet < FLEET_COST) continue;
+
+    state.wallet -= FLEET_COST;
+    spawnFrigate(state, bldg, slotIdx);
+    bldg.slots[slotIdx].occupied = true;
+    bldg.respawnTimer = SHIPYARD_RESPAWN_TIME;
   }
 
   // Update FX

@@ -100,7 +100,20 @@ export function updateHud(hud, state, camera, onRestart, onQuit, onResume) {
   }
 
   // Fleet counter
-  hud.fleet.textContent = `FLEET ${state.fleet.length}/${state.fleetCap}`;
+  if (state.fleet.length < state.fleetCap) {
+    let next = Infinity;
+    for (const b of state.buildings) {
+      if (b.type !== 'shipyard') continue;
+      if (b.slots.every(s => s.occupied)) continue;
+      if (b.respawnTimer < next) next = b.respawnTimer;
+    }
+    const nextStr = !isFinite(next) ? '' :
+      next > 0 ? ` — NEXT ${Math.ceil(next)}s (1¢)` :
+      state.wallet < 1 ? ' — NEED 1¢' : ' — NEXT …';
+    hud.fleet.textContent = `FLEET ${state.fleet.length}/${state.fleetCap}${nextStr}`;
+  } else {
+    hud.fleet.textContent = `FLEET ${state.fleet.length}/${state.fleetCap}`;
+  }
 
   // HP bar
   const ship = state.playerShip;

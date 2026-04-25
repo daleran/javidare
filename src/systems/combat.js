@@ -7,7 +7,7 @@ import {
 } from '../entities/fleetShip.js';
 import {
   BUILDING_FIRE_RATE, BUILDING_FIRE_RANGE, BUILDING_PROJECTILE_DAMAGE, BUILDING_PROJECTILE_SPEED,
-  CRYO_RANGE, CRYO_SLOW_FACTOR, CRYO_MAX_SLOW,
+  CRYO_RANGE, CRYO_SLOW_FACTOR, CRYO_MAX_SLOW, SHIPYARD_RESPAWN_TIME,
 } from '../entities/building.js';
 import { ENEMY_DEFS } from '../entities/enemy.js';
 import { createProjectile } from '../entities/projectile.js';
@@ -263,14 +263,12 @@ function killFrigate(state, index) {
   const f = state.fleet[index];
   spawnDeathFx(state, f.x, f.y, '#00d4ff');
 
-  // Mark its shipyard slot as unoccupied so it can respawn
   const shipyard = state.buildings.find(b => b.id === f.homeShipyardId);
   if (shipyard && shipyard.slots) {
+    const wasFull = shipyard.slots.every(s => s.occupied);
     const slot = shipyard.slots[f.slotIndex % shipyard.slots.length];
-    if (slot) {
-      slot.occupied = false;
-      slot.respawnTimer = 15;
-    }
+    if (slot) slot.occupied = false;
+    if (wasFull) shipyard.respawnTimer = SHIPYARD_RESPAWN_TIME;
   }
 
   state.fleet.splice(index, 1);
@@ -287,6 +285,13 @@ function killBuilding(state, index) {
     while (state.fleet.length > state.fleetCap) {
       const removed = state.fleet.pop();
       spawnDeathFx(state, removed.x, removed.y, '#00d4ff');
+      const home = state.buildings.find(by => by.id === removed.homeShipyardId);
+      if (home && home.slots) {
+        const wasFull = home.slots.every(s => s.occupied);
+        const slot = home.slots[removed.slotIndex % home.slots.length];
+        if (slot) slot.occupied = false;
+        if (wasFull) home.respawnTimer = SHIPYARD_RESPAWN_TIME;
+      }
     }
   }
 
