@@ -42,6 +42,7 @@ export function createBuilding(id, type, bodyId, bodyX, bodyY) {
     x: bodyX,
     y: bodyY,
     fireCooldown: 0,
+    heading: -Math.PI / 2,
   };
 
   if (type === 'shipyard') {

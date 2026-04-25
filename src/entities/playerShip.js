@@ -22,6 +22,8 @@ export function createPlayerShip(x, y) {
     fireCooldown: 0,
     autoFireTarget: null,
     orbitBodyId: null,
+    followDx: 0,
+    followDy: 0,
     thrustTime: 0,
   };
 }

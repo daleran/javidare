@@ -100,29 +100,31 @@ function drawExtractor(ctx, x, y, color) {
   ctx.stroke();
 }
 
-function drawLightTurret(ctx, x, y, color) {
+function drawLightTurret(ctx, x, y, color, heading) {
   const s = 11;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(heading + Math.PI / 2);
   ctx.strokeStyle = color;
   ctx.lineWidth = 1.5;
-  // Triangle pointing up
   ctx.beginPath();
-  ctx.moveTo(x, y - s);
-  ctx.lineTo(x + s * 0.85, y + s * 0.5);
-  ctx.lineTo(x - s * 0.85, y + s * 0.5);
+  ctx.moveTo(0, -s);
+  ctx.lineTo(s * 0.85, s * 0.5);
+  ctx.lineTo(-s * 0.85, s * 0.5);
   ctx.closePath();
   ctx.stroke();
-  // Barrel
   ctx.beginPath();
-  ctx.moveTo(x, y - s);
-  ctx.lineTo(x, y - s - 10);
+  ctx.moveTo(0, -s);
+  ctx.lineTo(0, -s - 10);
   ctx.stroke();
+  ctx.restore();
 }
 
-function drawTurretPlatform(ctx, x, y, color) {
+function drawTurretPlatform(ctx, x, y, color, heading) {
   const s = 16;
   ctx.strokeStyle = color;
   ctx.lineWidth = 1.5;
-  // Hexagon
+  // Hexagon base — no rotation, it's symmetric
   ctx.beginPath();
   for (let i = 0; i < 6; i++) {
     const a = (i * Math.PI) / 3;
@@ -132,14 +134,18 @@ function drawTurretPlatform(ctx, x, y, color) {
   }
   ctx.closePath();
   ctx.stroke();
-  // Center + barrel
+  // Rotating barrel
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(heading + Math.PI / 2);
   ctx.beginPath();
-  ctx.arc(x, y, 4, 0, Math.PI * 2);
+  ctx.arc(0, 0, 4, 0, Math.PI * 2);
   ctx.stroke();
   ctx.beginPath();
-  ctx.moveTo(x, y - 4);
-  ctx.lineTo(x, y - s - 8);
+  ctx.moveTo(0, -4);
+  ctx.lineTo(0, -s - 8);
   ctx.stroke();
+  ctx.restore();
 }
 
 function drawShipyard(ctx, x, y, color) {
@@ -431,8 +437,8 @@ function drawBuildings(ctx, buildings) {
     ctx.globalAlpha = alpha;
     switch (b.type) {
       case 'extractor':      drawExtractor(ctx, b.x, b.y, '#00d4ff'); break;
-      case 'lightTurret':    drawLightTurret(ctx, b.x, b.y, '#00d4ff'); break;
-      case 'turretPlatform': drawTurretPlatform(ctx, b.x, b.y, '#00d4ff'); break;
+      case 'lightTurret':    drawLightTurret(ctx, b.x, b.y, '#00d4ff', b.heading); break;
+      case 'turretPlatform': drawTurretPlatform(ctx, b.x, b.y, '#00d4ff', b.heading); break;
       case 'shipyard':       drawShipyard(ctx, b.x, b.y, '#00d4ff'); break;
     }
     ctx.restore();

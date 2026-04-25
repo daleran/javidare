@@ -342,16 +342,17 @@ function buildingAutofire(state, dt) {
   for (const bldg of state.buildings) {
     const fireRate = BUILDING_FIRE_RATE[bldg.type];
     if (!fireRate) continue;
-    bldg.fireCooldown -= dt;
-    if (bldg.fireCooldown > 0) continue;
     const range = BUILDING_FIRE_RANGE[bldg.type];
     const target = nearestEnemy(state, bldg.x, bldg.y, range);
+    // Always track nearest enemy with the barrel, even between shots
+    if (target) bldg.heading = Math.atan2(target.y - bldg.y, target.x - bldg.x);
+    bldg.fireCooldown -= dt;
+    if (bldg.fireCooldown > 0) continue;
     if (!target) continue;
     bldg.fireCooldown = 1 / fireRate;
-    const angle = Math.atan2(target.y - bldg.y, target.x - bldg.x);
     const speed = BUILDING_PROJECTILE_SPEED[bldg.type];
     const dmg = BUILDING_PROJECTILE_DAMAGE[bldg.type];
-    state.projectiles.push(createProjectile(bldg.x, bldg.y, angle, speed, dmg, 'friendly'));
+    state.projectiles.push(createProjectile(bldg.x, bldg.y, bldg.heading, speed, dmg, 'friendly'));
   }
 }
 

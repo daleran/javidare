@@ -2,8 +2,8 @@ import { PLAYER_ACCEL, PLAYER_DAMPING, PLAYER_SPEED } from '../entities/playerSh
 import { FLEET_ACCEL, FLEET_DAMPING, FLEET_SPEED, getSlotOffset } from '../entities/fleetShip.js';
 
 const WORLD_HALF = 2200;
-const TURN_SPEED = 3.2;         // radians/s
-const ORBIT_ENTER_RADIUS = 2.8; // multiples of body.radius to enter orbit
+const TURN_SPEED = 3.2;          // radians/s
+const FOLLOW_ENTER_RADIUS = 2.8; // multiples of body.radius to enter follow
 
 export function updateMovement(state, input, dt) {
   if (state.gameStatus !== 'playing') return;
@@ -19,8 +19,8 @@ export function updateMovement(state, input, dt) {
   const sin = Math.sin(ship.heading);
   const thrusting = keys['KeyW'] || keys['KeyS'];
 
-  // Ease-in: thrustTime ramps 0→1 over 1 s while thrusting, resets instantly on release
-  ship.thrustTime = thrusting ? Math.min(1, ship.thrustTime + dt) : 0;
+  // Ease-in: thrustTime ramps 0→1 over ~0.3 s while thrusting, resets instantly on release
+  ship.thrustTime = thrusting ? Math.min(1, ship.thrustTime + dt * 3.5) : 0;
   const eased = ship.thrustTime * ship.thrustTime; // quadratic ease-in
 
   let thrustX = 0, thrustY = 0;
@@ -37,8 +37,8 @@ export function updateMovement(state, input, dt) {
     ship.vy = (ship.vy / spd) * PLAYER_SPEED;
   }
 
-  // Auto-orbit: if not thrusting and near a body, co-rotate with it
-  updateOrbit(state, ship, keys, dt);
+  // Planet follow: if not pressing any movement key and near a body, translate with it
+  updateFollow(state, ship, keys);
 
   ship.x += ship.vx * dt;
   ship.y += ship.vy * dt;
@@ -50,42 +50,41 @@ export function updateMovement(state, input, dt) {
   updateFleetMovement(state, dt);
 }
 
-function updateOrbit(state, ship, keys, dt) {
-  // Exit (or don't enter) orbit while thrusting
+function updateFollow(state, ship, keys) {
+  // Only thrust releases the ship from following; rotation (A/D) does not
   if (keys['KeyW'] || keys['KeyS']) {
     ship.orbitBodyId = null;
     return;
   }
 
   // Find closest body within range
-  let orbitBody = null;
-  let orbitDist = Infinity;
+  let followBody = null;
+  let followDist = Infinity;
   for (const body of state.bodies) {
     const dx = ship.x - body.x;
     const dy = ship.y - body.y;
     const dist = Math.hypot(dx, dy);
-    if (dist < body.radius * ORBIT_ENTER_RADIUS && dist < orbitDist) {
-      orbitBody = body;
-      orbitDist = dist;
+    if (dist < body.radius * FOLLOW_ENTER_RADIUS && dist < followDist) {
+      followBody = body;
+      followDist = dist;
     }
   }
 
-  if (!orbitBody) {
+  if (!followBody) {
     ship.orbitBodyId = null;
     return;
   }
 
-  ship.orbitBodyId = orbitBody.id;
+  // Record offset the first time we lock onto this body
+  if (ship.orbitBodyId !== followBody.id) {
+    ship.orbitBodyId = followBody.id;
+    ship.followDx = ship.x - followBody.x;
+    ship.followDy = ship.y - followBody.y;
+  }
 
-  // Advance ship's angle around the body by the body's own orbit speed
-  const dx = ship.x - orbitBody.x;
-  const dy = ship.y - orbitBody.y;
-  const r = Math.hypot(dx, dy);
-  const angle = Math.atan2(dy, dx) + orbitBody.orbitSpeed * dt;
-
-  // Directly place the ship and zero velocity so the subsequent += vx*dt is a no-op
-  ship.x = orbitBody.x + Math.cos(angle) * r;
-  ship.y = orbitBody.y + Math.sin(angle) * r;
+  // Reapply the fixed offset each tick — ship translates with the planet
+  ship.x = followBody.x + ship.followDx;
+  ship.y = followBody.y + ship.followDy;
   ship.vx = 0;
   ship.vy = 0;
 }
