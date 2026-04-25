@@ -37,58 +37,58 @@ export const BUILDING_LABEL = {
   fortress: 'FORTRESS',
 };
 
-// Procedural belt generator — deterministic from index.
-function makeBelt(idPrefix, label, count, rMin, rMax, sizeMin, sizeMax, baseSpeed, retro = false) {
-  const out = [];
-  const colors = ['#888070', '#706870', '#807868', '#787058', '#94806e'];
-  for (let i = 0; i < count; i++) {
-    const t = i / count;
-    const orbitRadius = rMin + (Math.sin(i * 2.71) * 0.5 + 0.5) * (rMax - rMin);
-    const phase = t * Math.PI * 2 + ((i * 31) % 70) / 100;
-    const sizeFrac = ((i * 17) % 100) / 100;
-    const radius = Math.round((sizeMin + sizeFrac * (sizeMax - sizeMin)) * 10) / 10;
-    const speedJitter = 0.85 + ((i * 23) % 30) / 100;
-    out.push({
-      id: `${idPrefix}${String(i + 1).padStart(2, '0')}`,
-      type: 'asteroid',
-      parentId: 'sun',
-      orbitRadius,
-      orbitSpeed: (retro ? -1 : 1) * baseSpeed * speedJitter,
-      phase,
-      radius,
-      color: colors[i % colors.length],
-      label: `${label}-${String(i + 1).padStart(2, '0')}`,
-    });
-  }
-  return out;
+// A "cluster" is a tight knot of 2 asteroids sharing nearly the same orbit
+// — they read as one group, but each asteroid is a distinct buildable slot.
+// Three clusters per belt is enough to feel populated without becoming a
+// dense stripe of indistinguishable dots.
+function makeCluster(idPrefix, labelPrefix, clusterIdx, centerPhase, centerRadius, baseSpeed) {
+  const colors = ['#888070', '#807868', '#94806e'];
+  const offsets = [
+    { dPhase: -0.05, dRadius: -22, dSize:  0, dSpeed:  0.0004 },
+    { dPhase:  0.00, dRadius:  +6, dSize: +1, dSpeed:  0.0000 },
+    { dPhase:  0.06, dRadius: +18, dSize: -1, dSpeed: -0.0003 },
+  ];
+  return offsets.map((o, i) => ({
+    id: `${idPrefix}${clusterIdx}-${i + 1}`,
+    type: 'asteroid',
+    parentId: 'sun',
+    orbitRadius: centerRadius + o.dRadius,
+    orbitSpeed: baseSpeed + o.dSpeed,
+    phase: centerPhase + o.dPhase,
+    radius: 7 + o.dSize,
+    color: colors[(clusterIdx + i) % colors.length],
+    label: `${labelPrefix}-${clusterIdx}.${i + 1}`,
+  }));
 }
 
-const INNER_SHOAL = [
-  { id: 'sol1', type: 'asteroid', parentId: 'sun', orbitRadius: 340, orbitSpeed:  0.034, phase: Math.PI * 0.10, radius: 6,  color: '#a08070', label: 'Sol-A' },
-  { id: 'sol2', type: 'asteroid', parentId: 'sun', orbitRadius: 405, orbitSpeed: -0.029, phase: Math.PI * 0.55, radius: 5,  color: '#806858', label: 'Sol-B' },
-  { id: 'sol3', type: 'rocky',    parentId: 'sun', orbitRadius: 460, orbitSpeed:  0.027, phase: Math.PI * 1.10, radius: 11, color: '#9a6048', label: 'Solis' },
-  { id: 'sol4', type: 'asteroid', parentId: 'sun', orbitRadius: 510, orbitSpeed:  0.025, phase: Math.PI * 1.50, radius: 5,  color: '#706060', label: 'Sol-D' },
-  { id: 'sol5', type: 'asteroid', parentId: 'sun', orbitRadius: 540, orbitSpeed: -0.024, phase: Math.PI * 1.85, radius: 6,  color: '#787058', label: 'Sol-E' },
-  { id: 'sol6', type: 'asteroid', parentId: 'sun', orbitRadius: 580, orbitSpeed:  0.023, phase: Math.PI * 0.30, radius: 5,  color: '#807060', label: 'Sol-F' },
+const INNER_CLUSTERS = [
+  ...makeCluster('ba', 'Belt-A', 1, 0.55,            870, 0.0185),
+  ...makeCluster('ba', 'Belt-A', 2, Math.PI * 0.85,  880, 0.0184),
+  ...makeCluster('ba', 'Belt-A', 3, Math.PI * 1.55,  860, 0.0186),
 ];
 
-const BELT_A = makeBelt('ba', 'Belt-A', 18, 800,  960,  4, 6, 0.0185);
-const BELT_B = makeBelt('bb', 'Belt-B', 20, 1850, 2050, 4, 6, 0.0095, true);
+const OUTER_CLUSTERS = [
+  ...makeCluster('bb', 'Belt-B', 1, 0.40,            1950, -0.0094),
+  ...makeCluster('bb', 'Belt-B', 2, Math.PI * 0.90,  1920, -0.0096),
+  ...makeCluster('bb', 'Belt-B', 3, Math.PI * 1.55,  1980, -0.0093),
+];
 
 export const BODY_DEFS = [
   // Sun — fixed at origin
   { id: 'sun', type: 'sun', parentId: null, orbitRadius: 0, orbitSpeed: 0, phase: 0, radius: 64, color: '#ffe580', label: 'Star' },
 
-  // Inner-system shoal (between sun and Keth)
-  ...INNER_SHOAL,
+  // Inner-system shoal: a small rocky body and a couple of asteroids
+  { id: 'solis',  type: 'rocky',    parentId: 'sun', orbitRadius: 460, orbitSpeed:  0.027, phase: Math.PI * 1.10, radius: 11, color: '#9a6048', label: 'Solis' },
+  { id: 'inner1', type: 'asteroid', parentId: 'sun', orbitRadius: 360, orbitSpeed:  0.034, phase: Math.PI * 0.10, radius: 6,  color: '#a08070', label: 'Inner-1' },
+  { id: 'inner2', type: 'asteroid', parentId: 'sun', orbitRadius: 545, orbitSpeed: -0.024, phase: Math.PI * 1.85, radius: 6,  color: '#787058', label: 'Inner-2' },
 
   // Home planet + moons
   { id: 'keth',   type: 'rocky',    parentId: 'sun',  orbitRadius: 620, orbitSpeed:  0.022, phase: 0,                radius: 22, color: '#b08060', label: 'Keth', isHome: true },
   { id: 'kethI',  type: 'moon',     parentId: 'keth', orbitRadius: 80,  orbitSpeed:  0.12,  phase: Math.PI * 0.30,   radius: 9,  color: '#888888', label: 'Keth I' },
   { id: 'kethII', type: 'ice_moon', parentId: 'keth', orbitRadius: 130, orbitSpeed: -0.085, phase: Math.PI * 1.20,   radius: 7,  color: '#b8d4e0', label: 'Keth II' },
 
-  // Inner asteroid belt (between Keth and Dera)
-  ...BELT_A,
+  // Inner asteroid belt — 3 clusters
+  ...INNER_CLUSTERS,
 
   // Outer rocky planet
   { id: 'dera', type: 'rocky', parentId: 'sun', orbitRadius: 1050, orbitSpeed: 0.014, phase: Math.PI * 0.65, radius: 18, color: '#c06050', label: 'Dera' },
@@ -100,8 +100,8 @@ export const BODY_DEFS = [
   { id: 'alvosIII', type: 'ice_moon',     parentId: 'alvos', orbitRadius: 175,  orbitSpeed:  0.062,  phase: Math.PI * 1.05, radius: 9,  color: '#a8c8d8', label: 'Alvos III' },
   { id: 'alvosIV',  type: 'moon',         parentId: 'alvos', orbitRadius: 205,  orbitSpeed:  0.052,  phase: Math.PI * 0.85, radius: 7,  color: '#7a8aa2', label: 'Alvos IV' },
 
-  // Outer asteroid belt (between Alvos and Miru)
-  ...BELT_B,
+  // Outer asteroid belt — 3 clusters
+  ...OUTER_CLUSTERS,
 
   // Miru — gas giant + 5 moons
   { id: 'miru',    type: 'gas',      parentId: 'sun',  orbitRadius: 2300, orbitSpeed:  0.005, phase: Math.PI * 1.85, radius: 58, color: '#507848', label: 'Miru' },

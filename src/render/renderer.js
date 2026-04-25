@@ -309,9 +309,12 @@ function drawOrbitRings(ctx, bodies) {
   for (const b of bodies) byId[b.id] = b;
   for (const b of bodies) {
     if (!b.parentId || b.orbitRadius <= 0) continue;
+    // Skip orbit rings for individual asteroids — belts contain many bodies on
+    // near-identical orbits, and stacking those rings produces a noisy stripe.
+    if (b.type === 'asteroid') continue;
     const parent = byId[b.parentId];
     if (!parent) continue;
-    ctx.strokeStyle = b.type === 'moon'
+    ctx.strokeStyle = (b.type === 'moon' || b.type === 'ice_moon')
       ? 'rgba(74,127,165,0.38)'
       : 'rgba(74,127,165,0.55)';
     ctx.beginPath();

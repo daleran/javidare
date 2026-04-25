@@ -3,7 +3,7 @@ import { createBuilding } from '../entities/building.js';
 import { nextId } from '../game/state.js';
 
 const BUILD_DURATION = 1.0;  // seconds to hold Space
-const BUILD_OVERLAP  = 18;   // extra pixels beyond body radius to trigger build zone
+const BUILD_OVERLAP  = 40;   // extra pixels beyond body radius to trigger build zone
 
 function availableTypes(body, now) {
   const allowed = BUILDING_FOR_BODY[body.type] || [];
