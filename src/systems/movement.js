@@ -1,7 +1,7 @@
 import { PLAYER_ACCEL, PLAYER_DAMPING, PLAYER_SPEED } from '../entities/playerShip.js';
 import { FLEET_ACCEL, FLEET_DAMPING, FLEET_SPEED, getSlotOffset } from '../entities/fleetShip.js';
 
-const WORLD_HALF = 2200;
+const WORLD_HALF = 4400;
 const TURN_SPEED = 3.2;          // radians/s
 const FOLLOW_ENTER_RADIUS = 2.8; // multiples of body.radius to enter follow
 
@@ -107,7 +107,7 @@ function updateFleetMovement(state, dt) {
     // PD-controller: only steer when outside deadzone
     const deadzone = 8;
     if (dist > deadzone) {
-      const force = Math.min(dist * 6, FLEET_ACCEL);
+      const force = Math.min(dist * 12, FLEET_ACCEL);
       frigate.vx += (dx / dist) * force * dt;
       frigate.vy += (dy / dist) * force * dt;
     }
