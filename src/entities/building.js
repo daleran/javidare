@@ -35,7 +35,7 @@ export const BUILDING_PROJECTILE_SPEED = {
 export const EXTRACTOR_BASE_INCOME = 0.01; // credits/sec per radius unit
 
 export const SHIPYARD_SLOTS = 4;
-export const SHIPYARD_RESPAWN_TIME = 15; // seconds per frigate
+export const SHIPYARD_RESPAWN_TIME = 30; // seconds per frigate
 
 // Cryo battery — passive slow aura. Each battery in range subtracts
 // CRYO_SLOW_FACTOR from an enemy's effective speed multiplier; total
@@ -59,10 +59,8 @@ export function createBuilding(id, type, bodyId, bodyX, bodyY) {
   };
 
   if (type === 'shipyard') {
-    base.slots = Array.from({ length: SHIPYARD_SLOTS }, () => ({
-      occupied: false,
-      respawnTimer: 0,
-    }));
+    base.slots = Array.from({ length: SHIPYARD_SLOTS }, () => ({ occupied: false }));
+    base.respawnTimer = 0;
   }
 
   return base;

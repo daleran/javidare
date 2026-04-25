@@ -46,6 +46,7 @@ export function updateWaves(state, dt) {
     const timedOut = state.waveCombatTimer >= COMBAT_TIMEOUT;
 
     if (budgetDone && (killRate >= 0.8 || timedOut)) {
+      for (const pk of state.pickups) pk.vacuum = true;
       if (state.waveIndex >= TOTAL_WAVES) {
         state.wavePhase = 'done';
         state.waveOrigins = [];

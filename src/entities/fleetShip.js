@@ -1,6 +1,7 @@
 import { PLAYER_SPEED, PLAYER_ACCEL } from './playerShip.js';
 
 export const FLEET_HP = 50;
+export const FLEET_COST = 1;
 export const FLEET_SPEED = PLAYER_SPEED * 1.4;
 export const FLEET_ACCEL = PLAYER_ACCEL * 1.4;
 export const FLEET_DAMPING = 0.85;

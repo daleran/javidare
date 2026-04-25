@@ -20,12 +20,12 @@ export const BUILDING_FOR_BODY = {
 };
 
 export const BUILDING_COST = {
-  extractor: 3,
-  lightTurret: 5,
-  turretPlatform: 7,
-  shipyard: 10,
-  cryoBattery: 6,
-  fortress: 12,
+  extractor: 6,
+  lightTurret: 12,
+  turretPlatform: 25,
+  shipyard: 40,
+  cryoBattery: 18,
+  fortress: 60,
 };
 
 export const BUILDING_LABEL = {
@@ -37,10 +37,7 @@ export const BUILDING_LABEL = {
   fortress: 'FORTRESS',
 };
 
-// A "cluster" is a tight knot of 2 asteroids sharing nearly the same orbit
-// — they read as one group, but each asteroid is a distinct buildable slot.
-// Three clusters per belt is enough to feel populated without becoming a
-// dense stripe of indistinguishable dots.
+// A "cluster" is a tight knot of 3 asteroids sharing nearly the same orbit.
 function makeCluster(idPrefix, labelPrefix, clusterIdx, centerPhase, centerRadius, baseSpeed) {
   const colors = ['#888070', '#807868', '#94806e'];
   const offsets = [
@@ -65,12 +62,18 @@ const INNER_CLUSTERS = [
   ...makeCluster('ba', 'Belt-A', 1, 0.55,            870, 0.0185),
   ...makeCluster('ba', 'Belt-A', 2, Math.PI * 0.85,  880, 0.0184),
   ...makeCluster('ba', 'Belt-A', 3, Math.PI * 1.55,  860, 0.0186),
+  ...makeCluster('ba', 'Belt-A', 4, Math.PI * 0.30,  875, 0.0185),
+  ...makeCluster('ba', 'Belt-A', 5, Math.PI * 1.15,  865, 0.0186),
+  ...makeCluster('ba', 'Belt-A', 6, Math.PI * 1.85,  872, 0.0184),
 ];
 
 const OUTER_CLUSTERS = [
   ...makeCluster('bb', 'Belt-B', 1, 0.40,            1950, -0.0094),
   ...makeCluster('bb', 'Belt-B', 2, Math.PI * 0.90,  1920, -0.0096),
   ...makeCluster('bb', 'Belt-B', 3, Math.PI * 1.55,  1980, -0.0093),
+  ...makeCluster('bb', 'Belt-B', 4, Math.PI * 0.20,  1940, -0.0095),
+  ...makeCluster('bb', 'Belt-B', 5, Math.PI * 1.20,  1965, -0.0094),
+  ...makeCluster('bb', 'Belt-B', 6, Math.PI * 1.80,  1930, -0.0096),
 ];
 
 export const BODY_DEFS = [

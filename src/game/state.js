@@ -1,6 +1,6 @@
 export function createState() {
   return {
-    wallet: 5,
+    wallet: 15,
     incomePerSec: 0,
     waveIndex: 0,       // 1-6; starts at 0 = no wave yet
     wavePhase: 'buildup', // 'buildup' | 'combat' | 'done'

@@ -112,9 +112,7 @@ function completeBuild(state, now) {
   if (buildingType === 'shipyard') {
     state.shipyardCount++;
     state.fleetCap = state.shipyardCount * 4;
-    for (const slot of building.slots) {
-      slot.respawnTimer = 2; // short delay before first frigate
-    }
+    building.respawnTimer = 2;
   }
 
   state.buildPhase = 'idle';
