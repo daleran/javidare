@@ -8,7 +8,7 @@ import { createFleetShip, FLEET_SPEED, FLEET_ACCEL, FLEET_DAMPING, getSlotOffset
 import { updateCombat } from '../src/systems/combat.js';
 import { updateEconomy } from '../src/systems/economy.js';
 import { updateWaves } from '../src/systems/waves.js';
-import { BUILDING_FOR_BODY, BUILDING_COST } from '../src/world/bodies.js';
+import { ALLOWED_FOR_BODY, BUILDING_COST } from '../src/world/bodies.js';
 
 const TICK_RATE = 20;           // Hz
 const TICK_MS = 1000 / TICK_RATE;
@@ -238,7 +238,7 @@ export class GameRoom {
     const body = gs.bodies.find(b => b.id === bodyId);
     if (!body) return this.sendTo(playerId, { type: 'build_result', ok: false, reason: 'body_not_found' });
 
-    const allowed = (BUILDING_FOR_BODY[body.type] || []).includes(buildingType);
+    const allowed = (ALLOWED_FOR_BODY[body.type] || []).includes(buildingType);
     if (!allowed) return this.sendTo(playerId, { type: 'build_result', ok: false, reason: 'not_allowed' });
 
     if (body.buildings.find(b => b.type === buildingType)) {
