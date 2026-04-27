@@ -1,4 +1,5 @@
-import { BODY_DEFS } from './bodies.js';
+import { BODY_DEFS, slotCountForBody } from './bodies.js';
+import { createWarpGates } from '../entities/warpGate.js';
 
 export function initBodies() {
   const bodies = BODY_DEFS.map(def => ({
@@ -6,13 +7,30 @@ export function initBodies() {
     angle: def.phase,
     x: 0,
     y: 0,
-    buildings: [],          // [{ type, id }] — one entry per occupied slot
-    cooldowns: {},          // { [buildingType]: timestamp } when slot is rebuildable
+    buildings: [],   // [{ type, id, slotIndex }] — occupied slots
+    slots: [],       // [{ angle, occupied, cooldownUntil, buildingId }]
+    cooldowns: {},   // kept for backwards compat; slot.cooldownUntil is authoritative
   }));
 
-  // Compute initial positions
+  // Compute initial positions before generating slots (slots don't need positions yet)
   updateOrbits(bodies, 0);
+
+  // Generate build slots for each body
+  for (const b of bodies) {
+    const n = slotCountForBody(b);
+    b.slots = Array.from({ length: n }, (_, i) => ({
+      angle: (i / n) * Math.PI * 2,
+      occupied: false,
+      cooldownUntil: 0,
+      buildingId: null,
+    }));
+  }
+
   return bodies;
+}
+
+export function initWarpGates() {
+  return createWarpGates();
 }
 
 export function updateOrbits(bodies, dt) {

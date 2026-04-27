@@ -1,5 +1,4 @@
-import { PICKUP_PULL_RADIUS } from '../systems/economy.js';
-import { HOME_HEAL_RADIUS } from '../entities/playerShip.js';
+import { SLOT_RADIUS, ALLOWED_FOR_BODY } from '../world/bodies.js';
 
 // seeded RNG for deterministic starfield
 function seededRng(seed) {
@@ -14,11 +13,11 @@ function generateStars(count, rng) {
   const stars = [];
   for (let i = 0; i < count; i++) {
     stars.push({
-      nx: rng(),    // normalized [0,1] position
+      nx: rng(),
       ny: rng(),
       alpha: 0.15 + rng() * 0.55,
       size: rng() < 0.07 ? 1.5 : 0.9,
-      layer: rng() < 0.45 ? 0 : 1,  // 0=far, 1=near
+      layer: rng() < 0.45 ? 0 : 1,
     });
   }
   return stars;
@@ -29,7 +28,7 @@ const STARS = generateStars(220, rng);
 
 function wmod(v, m) { return ((v % m) + m) % m; }
 
-// ─── Ship/enemy triangle shape ──────────────────────────────────────────────
+// ─── Enemy ship shapes ────────────────────────────────────────────────────────
 
 function drawTriangle(ctx, x, y, size, heading, strokeColor, lineWidth = 1.5) {
   ctx.save();
@@ -47,40 +46,51 @@ function drawTriangle(ctx, x, y, size, heading, strokeColor, lineWidth = 1.5) {
   ctx.restore();
 }
 
-function drawChevron(ctx, x, y, size, heading, color) {
-  // Bomber silhouette: wide chevron
+function drawSwarmer(ctx, e) {
+  drawTriangle(ctx, e.x, e.y, 7, e.heading, '#ff8c00', 1.2);
+}
+
+function drawBreacher(ctx, e) {
+  const s = 14;
   ctx.save();
-  ctx.translate(x, y);
-  ctx.rotate(heading);
+  ctx.translate(e.x, e.y);
+  ctx.rotate(e.heading);
+  ctx.strokeStyle = '#ff8c00';
+  ctx.lineWidth = 2.0;
   ctx.beginPath();
-  ctx.moveTo(size * 0.5, 0);
-  ctx.lineTo(-size * 0.5, size * 0.9);
-  ctx.lineTo(-size * 0.2, 0);
-  ctx.lineTo(-size * 0.5, -size * 0.9);
+  ctx.moveTo( s * 0.7,  0         );
+  ctx.lineTo( s * 0.3,  s * 0.55  );
+  ctx.lineTo(-s * 0.7,  s * 0.45  );
+  ctx.lineTo(-s * 0.95, 0         );
+  ctx.lineTo(-s * 0.7, -s * 0.45  );
+  ctx.lineTo( s * 0.3, -s * 0.55  );
   ctx.closePath();
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 1.5;
   ctx.stroke();
   ctx.restore();
 }
 
-function drawMiniboss(ctx, x, y, size, heading, color) {
-  // Larger, jagged outline
+function drawHunter(ctx, e) {
+  const s = 12;
   ctx.save();
-  ctx.translate(x, y);
-  ctx.rotate(heading);
+  ctx.translate(e.x, e.y);
+  ctx.rotate(e.heading);
+  ctx.strokeStyle = '#ff8c00';
+  ctx.lineWidth = 1.6;
+  // Long needle silhouette
   ctx.beginPath();
-  ctx.moveTo(size, 0);
-  ctx.lineTo(size * 0.4, size * 0.7);
-  ctx.lineTo(-size * 0.2, size * 1.1);
-  ctx.lineTo(-size * 0.7, size * 0.6);
-  ctx.lineTo(-size, 0);
-  ctx.lineTo(-size * 0.7, -size * 0.6);
-  ctx.lineTo(-size * 0.2, -size * 1.1);
-  ctx.lineTo(size * 0.4, -size * 0.7);
+  ctx.moveTo( s * 1.4,  0        );
+  ctx.lineTo( s * 0.4,  s * 0.28 );
+  ctx.lineTo(-s * 0.9,  s * 0.32 );
+  ctx.lineTo(-s * 0.7,  0        );
+  ctx.lineTo(-s * 0.9, -s * 0.32 );
+  ctx.lineTo( s * 0.4, -s * 0.28 );
   ctx.closePath();
-  ctx.strokeStyle = color;
+  ctx.stroke();
+  // Sniper barrel
   ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(s * 0.8, 0);
+  ctx.lineTo(s * 1.6, 0);
   ctx.stroke();
   ctx.restore();
 }
@@ -88,7 +98,7 @@ function drawMiniboss(ctx, x, y, size, heading, color) {
 // ─── Building shapes ─────────────────────────────────────────────────────────
 
 function drawExtractor(ctx, x, y, color) {
-  const s = 12;
+  const s = 10;
   ctx.strokeStyle = color;
   ctx.lineWidth = 1.5;
   ctx.beginPath();
@@ -96,96 +106,91 @@ function drawExtractor(ctx, x, y, color) {
   ctx.moveTo(x, y - s); ctx.lineTo(x, y + s);
   ctx.stroke();
   ctx.beginPath();
-  ctx.arc(x, y, 4, 0, Math.PI * 2);
+  ctx.arc(x, y, 3.5, 0, Math.PI * 2);
   ctx.stroke();
 }
 
-function drawLightTurret(ctx, x, y, color, heading) {
-  const s = 11;
+function drawRailgunTurret(ctx, x, y, color, heading) {
+  const s = 12;
   ctx.save();
   ctx.translate(x, y);
-  ctx.rotate(heading + Math.PI / 2);
   ctx.strokeStyle = color;
   ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  ctx.moveTo(0, -s);
-  ctx.lineTo(s * 0.85, s * 0.5);
-  ctx.lineTo(-s * 0.85, s * 0.5);
-  ctx.closePath();
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.moveTo(0, -s);
-  ctx.lineTo(0, -s - 10);
-  ctx.stroke();
-  ctx.restore();
-}
-
-function drawTurretPlatform(ctx, x, y, color, heading) {
-  const s = 16;
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 1.5;
-  // Hexagon base — no rotation, it's symmetric
+  // Hexagon base
   ctx.beginPath();
   for (let i = 0; i < 6; i++) {
     const a = (i * Math.PI) / 3;
-    const px = x + Math.cos(a) * s;
-    const py = y + Math.sin(a) * s;
+    const px = Math.cos(a) * s;
+    const py = Math.sin(a) * s;
     i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
   }
   ctx.closePath();
   ctx.stroke();
-  // Rotating barrel
-  ctx.save();
-  ctx.translate(x, y);
+  // Barrel
   ctx.rotate(heading + Math.PI / 2);
   ctx.beginPath();
-  ctx.arc(0, 0, 4, 0, Math.PI * 2);
+  ctx.arc(0, 0, 3.5, 0, Math.PI * 2);
   ctx.stroke();
+  ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.moveTo(0, -4);
+  ctx.moveTo(0, -3.5);
   ctx.lineTo(0, -s - 8);
   ctx.stroke();
   ctx.restore();
 }
 
-function drawShipyard(ctx, x, y, color) {
-  const w = 28, h = 14;
+function drawMissileTurret(ctx, x, y, color, heading) {
+  const s = 13;
+  ctx.save();
+  ctx.translate(x, y);
   ctx.strokeStyle = color;
   ctx.lineWidth = 1.5;
-  ctx.strokeRect(x - w / 2, y - h / 2, w, h);
-  // Two landing pad wings
+  // Octagon base
   ctx.beginPath();
-  ctx.moveTo(x - w / 2, y); ctx.lineTo(x - w / 2 - 8, y);
-  ctx.moveTo(x + w / 2, y); ctx.lineTo(x + w / 2 + 8, y);
-  ctx.stroke();
-  // Small rectangle inside
-  ctx.strokeRect(x - 5, y - 5, 10, 10);
-}
-
-function drawCryoBattery(ctx, x, y, color) {
-  const s = 12;
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 1.5;
-  // Diamond
-  ctx.beginPath();
-  ctx.moveTo(x, y - s);
-  ctx.lineTo(x + s, y);
-  ctx.lineTo(x, y + s);
-  ctx.lineTo(x - s, y);
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2 + Math.PI / 8;
+    const px = Math.cos(a) * s;
+    const py = Math.sin(a) * s;
+    i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+  }
   ctx.closePath();
   ctx.stroke();
-  // Inner cross
-  ctx.beginPath();
-  ctx.moveTo(x - s * 0.45, y); ctx.lineTo(x + s * 0.45, y);
-  ctx.moveTo(x, y - s * 0.45); ctx.lineTo(x, y + s * 0.45);
-  ctx.stroke();
+  // Twin launch tubes
+  ctx.rotate(heading + Math.PI / 2);
+  ctx.lineWidth = 2.5;
+  for (const ox of [-3.5, 3.5]) {
+    ctx.beginPath();
+    ctx.moveTo(ox, -3);
+    ctx.lineTo(ox, -s - 6);
+    ctx.stroke();
+  }
+  ctx.restore();
 }
 
-function drawFortress(ctx, x, y, color) {
-  const s = 17;
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 1.6;
-  // Octagon
+// ─── Station shape ────────────────────────────────────────────────────────────
+
+function drawStation(ctx, station, isSelected) {
+  const { x, y } = station;
+  const s = 20;
+  const t = performance.now() / 1000;
+
+  // Shield bubble
+  if (station.shieldHp > 0) {
+    const shieldAlpha = (station.shieldHp / station.maxShieldHp) * 0.18;
+    const pulseAlpha  = shieldAlpha * (0.7 + 0.3 * Math.sin(t * 2.2));
+    ctx.save();
+    ctx.globalAlpha = pulseAlpha;
+    ctx.strokeStyle = '#a0d8ef';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.arc(x, y, s + 14, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // Octagon hull
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 2;
   ctx.beginPath();
   for (let i = 0; i < 8; i++) {
     const a = (i / 8) * Math.PI * 2 + Math.PI / 8;
@@ -195,14 +200,204 @@ function drawFortress(ctx, x, y, color) {
   }
   ctx.closePath();
   ctx.stroke();
-  // Inner square
-  ctx.strokeRect(x - 6, y - 6, 12, 12);
-  // Heavy barrel
-  ctx.lineWidth = 2.5;
+
+  // Inner cross (docking ring indicator)
+  ctx.strokeStyle = 'rgba(180,220,255,0.5)';
+  ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.moveTo(x, y - 6);
-  ctx.lineTo(x, y - s - 8);
+  ctx.arc(x, y, s * 0.45, 0, Math.PI * 2);
   ctx.stroke();
+
+  // Selection ring
+  if (isSelected) {
+    const pulse = 0.5 + 0.5 * Math.sin(t * 4);
+    ctx.save();
+    ctx.globalAlpha = 0.35 + 0.25 * pulse;
+    ctx.strokeStyle = '#00d4ff';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([5, 6]);
+    ctx.beginPath();
+    ctx.arc(x, y, s + 8, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+  }
+}
+
+// ─── Transport ship ───────────────────────────────────────────────────────────
+
+function drawTransport(ctx, ship) {
+  const w = 13;
+  const h = 6;
+  ctx.save();
+  ctx.translate(ship.x, ship.y);
+  ctx.rotate(ship.heading);
+  ctx.strokeStyle = '#00d4ff';
+  ctx.lineWidth = 1.2;
+  ctx.strokeRect(-w * 0.5, -h * 0.5, w, h);
+
+  // Front bulkhead notch — gives orientation cue
+  ctx.beginPath();
+  ctx.moveTo(w * 0.25, -h * 0.5);
+  ctx.lineTo(w * 0.25,  h * 0.5);
+  ctx.stroke();
+
+  // Cargo block
+  if (ship.cargoAmount > 0) {
+    const fillColor = ship.cargoKind === 'metal' ? '#aaddff'
+                    : ship.cargoKind === 'water'  ? '#88ccff'
+                    : '#ffe066';
+    ctx.fillStyle = fillColor;
+    ctx.fillRect(-w * 0.45, -h * 0.32, w * 0.65, h * 0.64);
+  }
+  ctx.restore();
+}
+
+// ─── Slot notch markers ───────────────────────────────────────────────────────
+
+function drawSlots(ctx, bodies, station, territoryRadius) {
+  const t = performance.now() / 1000;
+  for (const body of bodies) {
+    if (!body.slots || body.slots.length === 0) continue;
+    const allowed = ALLOWED_FOR_BODY[body.type] || [];
+    if (allowed.length === 0) continue;
+
+    const slotR = body.radius + SLOT_RADIUS;
+    for (const slot of body.slots) {
+      const sx = body.x + Math.cos(slot.angle) * slotR;
+      const sy = body.y + Math.sin(slot.angle) * slotR;
+
+      const inTerritory = !station || Math.hypot(sx - station.x, sy - station.y) <= territoryRadius;
+
+      if (slot.occupied) {
+        ctx.fillStyle = inTerritory ? '#00d4ff' : 'rgba(0,212,255,0.35)';
+        ctx.beginPath();
+        ctx.arc(sx, sy, 5, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        // Empty notch — bigger and brighter if in territory
+        const pulse = inTerritory ? 0.5 + 0.5 * Math.sin(t * 1.5 + slot.angle) : 0;
+        ctx.globalAlpha = inTerritory ? 0.55 + 0.25 * pulse : 0.18;
+        ctx.strokeStyle = inTerritory ? '#00d4ff' : '#4a7fa5';
+        ctx.lineWidth = 1.4;
+        ctx.beginPath();
+        ctx.arc(sx, sy, 7, 0, Math.PI * 2);
+        ctx.stroke();
+        // Inner cross — clear "build here" affordance when in territory
+        if (inTerritory) {
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(sx - 3, sy); ctx.lineTo(sx + 3, sy);
+          ctx.moveTo(sx, sy - 3); ctx.lineTo(sx, sy + 3);
+          ctx.stroke();
+        }
+        ctx.globalAlpha = 1;
+      }
+    }
+  }
+}
+
+// ─── Territory ring ───────────────────────────────────────────────────────────
+
+function drawTerritoryRing(ctx, station, radius) {
+  const t = performance.now() / 1000;
+  ctx.save();
+  ctx.globalAlpha = 0.32 + 0.06 * Math.sin(t * 1.2);
+  ctx.strokeStyle = '#00d4ff';
+  ctx.lineWidth = 1.2;
+  ctx.setLineDash([8, 10]);
+  ctx.beginPath();
+  ctx.arc(station.x, station.y, radius, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.restore();
+}
+
+// ─── Station orbit rings ──────────────────────────────────────────────────────
+
+function drawStationOrbitRings(ctx, station) {
+  if (!station) return;
+  const t = performance.now() / 1000;
+
+  // Current orbit ring — violet, completely outside the cyan/amber/steel palette
+  ctx.save();
+  ctx.globalAlpha = 0.55;
+  ctx.strokeStyle = '#c060ff';
+  ctx.lineWidth = 1.1;
+  ctx.setLineDash([3, 9]);
+  ctx.beginPath();
+  ctx.arc(0, 0, station.orbitRadius, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.restore();
+
+  // Target orbit ring — hot magenta, flashes fast on command then pulses slowly
+  if (station.targetOrbit) {
+    const pulse = station.orbitFlashTimer > 0
+      ? 0.70 + 0.30 * Math.sin(t * 14)
+      : 0.50 + 0.20 * Math.sin(t * 2.5);
+    ctx.save();
+    ctx.globalAlpha = pulse;
+    ctx.strokeStyle = '#ff66ff';
+    ctx.lineWidth = 1.4;
+    ctx.setLineDash([5, 7]);
+    ctx.beginPath();
+    ctx.arc(0, 0, station.targetOrbit.radius, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+  }
+}
+
+// ─── Warp gates ───────────────────────────────────────────────────────────────
+
+function drawWarpGates(ctx, gates, wavePhase) {
+  const t = performance.now() / 1000;
+  for (const gate of gates) {
+    const s = gate.active ? 14 : 10;
+    const pulse = gate.active ? 0.6 + 0.4 * Math.sin(t * 5) : 0.4;
+
+    ctx.save();
+    ctx.translate(gate.x, gate.y);
+    ctx.rotate(t * 0.3 + gate.angle);
+    ctx.globalAlpha = pulse;
+    ctx.strokeStyle = '#ff8c00';
+    ctx.lineWidth = gate.active ? 2 : 1.2;
+    // Diamond shape
+    ctx.beginPath();
+    ctx.moveTo(0,  -s);
+    ctx.lineTo(s,   0);
+    ctx.lineTo(0,   s);
+    ctx.lineTo(-s,  0);
+    ctx.closePath();
+    ctx.stroke();
+    // Inner cross
+    ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    ctx.moveTo(-s * 0.5, 0); ctx.lineTo(s * 0.5, 0);
+    ctx.moveTo(0, -s * 0.5); ctx.lineTo(0, s * 0.5);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+}
+
+// ─── Buildings ────────────────────────────────────────────────────────────────
+
+function drawBuildings(ctx, buildings) {
+  for (const b of buildings) {
+    const alpha = 0.5 + 0.5 * (b.hp / b.maxHp);
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    const color = '#00d4ff';
+    switch (b.type) {
+      case 'metalExtractor': drawExtractor(ctx, b.x, b.y, color); break;
+      case 'waterExtractor': drawExtractor(ctx, b.x, b.y, '#88ccff'); break;
+      case 'railgunTurret':  drawRailgunTurret(ctx, b.x, b.y, color, b.heading); break;
+      case 'missileTurret':  drawMissileTurret(ctx, b.x, b.y, '#ffe066', b.heading); break;
+    }
+    ctx.restore();
+  }
 }
 
 // ─── Main render function ────────────────────────────────────────────────────
@@ -228,50 +423,43 @@ export function createRenderer(canvas) {
     const W = window.innerWidth;
     const H = window.innerHeight;
 
-    // Reset to physical-pixel space
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    // Background
     ctx.fillStyle = '#050810';
     ctx.fillRect(0, 0, W, H);
 
-    // Grid overlay (screen-space tactical display)
     drawGrid(ctx, camera, W, H);
-
-    // Starfield (screen-space parallax)
     drawStarfield(ctx, camera, W, H);
 
-    // World-space drawing
     ctx.save();
     camera.applyTransform(ctx);
 
     drawOrbitRings(ctx, state.bodies);
-    drawHealAura(ctx, state.bodies);
+    drawStationOrbitRings(ctx, state.station);
     drawBodies(ctx, state.bodies);
+    drawWarpGates(ctx, state.warpGates || [], state.wavePhase);
     drawWrecks(ctx, state.wrecks, state.bodies);
+    drawSlots(ctx, state.bodies, state.station, state.territoryRadius);
     drawBuildings(ctx, state.buildings);
+
+    if (state.station) {
+      drawTerritoryRing(ctx, state.station, state.territoryRadius);
+      const isSelected = state.selection && state.selection.kind === 'station';
+      drawStation(ctx, state.station, isSelected);
+    }
+
+    for (const t of state.transportShips) drawTransport(ctx, t);
+    for (const e of state.enemies) drawEnemy(ctx, e);
+
     drawPickups(ctx, state.pickups);
     drawFx(ctx, state.fx);
     drawProjectiles(ctx, state.projectiles);
 
-    for (const f of state.fleet) drawFleetShip(ctx, f);
-    for (const e of state.enemies) drawEnemy(ctx, e);
-
-    drawPlayerShip(ctx, state.playerShip);
-
-    // Remote players (multiplayer)
-    for (const rp of (state.remotePlayers || [])) drawRemotePlayerShip(ctx, rp);
-
-    // Build progress arc around player
-    if (state.buildPhase === 'holding') {
-      drawBuildArc(ctx, state.playerShip, state.buildProgress);
-    }
-
     ctx.restore();
 
-    // Screen-space overlays (after world restore — coordinates are CSS pixels)
+    // Screen-space overlays
     if (state.gameStatus === 'playing' || state.gameStatus === 'paused') {
-      drawWaveOriginIndicators(ctx, state, camera, W, H);
+      drawWarpGateIndicators(ctx, state, camera, W, H);
       drawOffscreenEnemyMarkers(ctx, state, camera, W, H);
     }
   }
@@ -317,8 +505,6 @@ function drawOrbitRings(ctx, bodies) {
   for (const b of bodies) byId[b.id] = b;
   for (const b of bodies) {
     if (!b.parentId || b.orbitRadius <= 0) continue;
-    // Skip orbit rings for individual asteroids — belts contain many bodies on
-    // near-identical orbits, and stacking those rings produces a noisy stripe.
     if (b.type === 'asteroid') continue;
     const parent = byId[b.parentId];
     if (!parent) continue;
@@ -329,34 +515,6 @@ function drawOrbitRings(ctx, bodies) {
     ctx.arc(parent.x, parent.y, b.orbitRadius, 0, Math.PI * 2);
     ctx.stroke();
   }
-  ctx.setLineDash([]);
-  ctx.restore();
-}
-
-function drawHealAura(ctx, bodies) {
-  const home = bodies.find(b => b.isHome);
-  if (!home) return;
-  const t = performance.now() / 1000;
-  const pulse = 0.5 + 0.5 * Math.sin(t * 1.8);
-
-  ctx.save();
-  // Radial fill from planet edge outward
-  const grad = ctx.createRadialGradient(home.x, home.y, home.radius, home.x, home.y, HOME_HEAL_RADIUS);
-  grad.addColorStop(0, `rgba(0,220,140,${0.06 + 0.04 * pulse})`);
-  grad.addColorStop(1, 'rgba(0,220,140,0)');
-  ctx.fillStyle = grad;
-  ctx.beginPath();
-  ctx.arc(home.x, home.y, HOME_HEAL_RADIUS, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Pulsing boundary ring
-  ctx.globalAlpha = 0.12 + 0.10 * pulse;
-  ctx.strokeStyle = '#00dc8c';
-  ctx.lineWidth = 1.2;
-  ctx.setLineDash([6, 10]);
-  ctx.beginPath();
-  ctx.arc(home.x, home.y, HOME_HEAL_RADIUS, 0, Math.PI * 2);
-  ctx.stroke();
   ctx.setLineDash([]);
   ctx.restore();
 }
@@ -414,7 +572,6 @@ function drawIceMoon(ctx, b) {
 }
 
 function drawSun(ctx, b) {
-  // Outer glow
   const gradient = ctx.createRadialGradient(b.x, b.y, b.radius * 0.5, b.x, b.y, b.radius * 2.2);
   gradient.addColorStop(0, 'rgba(255,220,80,0.22)');
   gradient.addColorStop(1, 'rgba(255,220,80,0)');
@@ -422,13 +579,10 @@ function drawSun(ctx, b) {
   ctx.beginPath();
   ctx.arc(b.x, b.y, b.radius * 2.2, 0, Math.PI * 2);
   ctx.fill();
-
-  // Body
   ctx.fillStyle = '#ffe580';
   ctx.beginPath();
   ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
   ctx.fill();
-  // Inner bright
   ctx.fillStyle = 'rgba(255,255,200,0.6)';
   ctx.beginPath();
   ctx.arc(b.x, b.y, b.radius * 0.55, 0, Math.PI * 2);
@@ -436,20 +590,15 @@ function drawSun(ctx, b) {
 }
 
 function drawGasGiant(ctx, b) {
-  // Body fill
   ctx.fillStyle = b.color;
   ctx.beginPath();
   ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
   ctx.fill();
-
-  // Outline ring
-  ctx.strokeStyle = shiftAlpha(b.color, 0.9);
+  ctx.strokeStyle = b.color;
   ctx.lineWidth = 1;
   ctx.beginPath();
   ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
   ctx.stroke();
-
-  // Banding strokes (3 horizontal bands)
   ctx.save();
   ctx.beginPath();
   ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
@@ -466,15 +615,13 @@ function drawGasGiant(ctx, b) {
 }
 
 function drawAsteroid(ctx, b) {
-  // Irregular polygon using seeded offsets based on body id
   const sides = 6;
   ctx.fillStyle = b.color;
-  ctx.strokeStyle = shiftAlpha(b.color, 1.2);
+  ctx.strokeStyle = b.color;
   ctx.lineWidth = 0.8;
   ctx.beginPath();
   for (let i = 0; i < sides; i++) {
     const baseAngle = (i / sides) * Math.PI * 2;
-    // Pseudo-random radius variation per body
     const seed = b.id.charCodeAt(b.id.length - 1) + i * 13;
     const r = b.radius * (0.7 + 0.35 * ((seed * 7 + 3) % 10) / 10);
     const px = b.x + Math.cos(baseAngle) * r;
@@ -491,8 +638,7 @@ function drawPlanet(ctx, b) {
   ctx.beginPath();
   ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
   ctx.fill();
-  // Outline ring
-  ctx.strokeStyle = shiftAlpha(b.color, 1.3);
+  ctx.strokeStyle = b.color;
   ctx.lineWidth = 1;
   ctx.beginPath();
   ctx.arc(b.x, b.y, b.radius + 2, 0, Math.PI * 2);
@@ -506,51 +652,24 @@ function drawWrecks(ctx, wrecks, bodies) {
   ctx.lineWidth = 1;
   for (const w of wrecks) {
     const b = bodyMap[w.bodyId];
-    if (!b) continue;
-    const s = 8;
+    if (!b || !b.slots || b.slots[w.slotIndex] == null) continue;
+    const slot = b.slots[w.slotIndex];
+    const slotR = b.radius + SLOT_RADIUS;
+    const wx = b.x + Math.cos(slot.angle) * slotR;
+    const wy = b.y + Math.sin(slot.angle) * slotR;
+    const s = 6;
     ctx.beginPath();
-    ctx.moveTo(b.x - s, b.y - s); ctx.lineTo(b.x + s, b.y + s);
-    ctx.moveTo(b.x + s, b.y - s); ctx.lineTo(b.x - s, b.y + s);
+    ctx.moveTo(wx - s, wy - s); ctx.lineTo(wx + s, wy + s);
+    ctx.moveTo(wx + s, wy - s); ctx.lineTo(wx - s, wy + s);
     ctx.stroke();
-  }
-}
-
-function drawBuildings(ctx, buildings) {
-  // Cryo aura rings (rendered behind buildings so the icon stays crisp)
-  ctx.save();
-  ctx.strokeStyle = 'rgba(168,210,232,0.18)';
-  ctx.lineWidth = 0.7;
-  ctx.setLineDash([4, 8]);
-  for (const b of buildings) {
-    if (b.type !== 'cryoBattery') continue;
-    ctx.beginPath();
-    ctx.arc(b.x, b.y, 260, 0, Math.PI * 2);
-    ctx.stroke();
-  }
-  ctx.setLineDash([]);
-  ctx.restore();
-
-  for (const b of buildings) {
-    const alpha = 0.5 + 0.5 * (b.hp / b.maxHp);
-    ctx.save();
-    ctx.globalAlpha = alpha;
-    switch (b.type) {
-      case 'extractor':      drawExtractor(ctx, b.x, b.y, '#00d4ff'); break;
-      case 'lightTurret':    drawLightTurret(ctx, b.x, b.y, '#00d4ff', b.heading); break;
-      case 'turretPlatform': drawTurretPlatform(ctx, b.x, b.y, '#00d4ff', b.heading); break;
-      case 'shipyard':       drawShipyard(ctx, b.x, b.y, '#00d4ff'); break;
-      case 'cryoBattery':    drawCryoBattery(ctx, b.x, b.y, '#a8d2e8'); break;
-      case 'fortress':       drawFortress(ctx, b.x, b.y, '#00d4ff'); break;
-    }
-    ctx.restore();
   }
 }
 
 function drawPickups(ctx, pickups) {
-  ctx.strokeStyle = '#ffe066';
   ctx.lineWidth = 1;
   for (const p of pickups) {
     const s = 5;
+    ctx.strokeStyle = p.kind === 'fuel' ? '#ffe066' : '#aaddff';
     ctx.save();
     ctx.translate(p.x, p.y);
     ctx.rotate(Math.PI / 4);
@@ -585,100 +704,67 @@ function drawFx(ctx, fx) {
 
 function drawProjectiles(ctx, projectiles) {
   for (const p of projectiles) {
-    const speed = Math.hypot(p.vx, p.vy);
-    if (speed < 1) continue;
-    const nx = p.vx / speed;
-    const ny = p.vy / speed;
-    const len = p.faction === 'friendly' ? 10 : 7;
-    ctx.strokeStyle = p.faction === 'friendly' ? '#00d4ff' : '#ff8c00';
-    ctx.lineWidth = 1.5;
-    ctx.globalAlpha = Math.min(1, p.ttl * 4);
-    ctx.beginPath();
-    ctx.moveTo(p.x, p.y);
-    ctx.lineTo(p.x - nx * len, p.y - ny * len);
-    ctx.stroke();
+    const alpha = Math.min(1, p.ttl * 4);
+    if (p.kind === 'missile') {
+      // Small glowing chevron
+      const spd = Math.hypot(p.vx, p.vy);
+      if (spd < 1) continue;
+      const angle = Math.atan2(p.vy, p.vx);
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.translate(p.x, p.y);
+      ctx.rotate(angle);
+      ctx.strokeStyle = '#ffe066';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(5, 0);
+      ctx.lineTo(-3, 3);
+      ctx.lineTo(-1, 0);
+      ctx.lineTo(-3, -3);
+      ctx.closePath();
+      ctx.stroke();
+      ctx.restore();
+    } else if (p.kind === 'slug' || p.kind === 'tracer') {
+      const spd = Math.hypot(p.vx, p.vy);
+      if (spd < 1) continue;
+      const nx = p.vx / spd;
+      const ny = p.vy / spd;
+      ctx.globalAlpha = alpha;
+      ctx.strokeStyle = '#ff8c00';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y);
+      ctx.lineTo(p.x - nx * 6, p.y - ny * 6);
+      ctx.stroke();
+    } else {
+      // Cannon round: glowing disc
+      const core = p.faction === 'friendly' ? '#9be7ff' : '#ffd28a';
+      const glow = p.faction === 'friendly' ? '#00d4ff' : '#ff8c00';
+      ctx.globalAlpha = alpha * 0.35;
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = core;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 2.8, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
   ctx.globalAlpha = 1;
 }
 
-function drawFleetShip(ctx, f) {
-  drawTriangle(ctx, f.x, f.y, 10, f.heading, '#00d4ff', 1.2);
-}
-
 function drawEnemy(ctx, e) {
   switch (e.type) {
-    case 'skirmisher': drawTriangle(ctx, e.x, e.y, 10, e.heading, '#ff8c00', 1.2); break;
-    case 'bomber':     drawChevron(ctx, e.x, e.y, 13, e.heading, '#ff8c00'); break;
-    case 'miniboss':   drawMiniboss(ctx, e.x, e.y, 22, e.heading, '#ff8c00'); break;
+    case 'swarmer':  drawSwarmer(ctx, e);  break;
+    case 'breacher': drawBreacher(ctx, e); break;
+    case 'hunter':   drawHunter(ctx, e);   break;
   }
-}
-
-function drawPlayerShip(ctx, ship) {
-  if (!ship) return;
-  // Subtle glow
-  ctx.save();
-  ctx.globalAlpha = 0.15;
-  ctx.shadowBlur = 0;
-  ctx.strokeStyle = '#ffffff';
-  ctx.lineWidth = 8;
-  ctx.beginPath();
-  ctx.arc(ship.x, ship.y, 16, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.restore();
-
-  drawTriangle(ctx, ship.x, ship.y, 14, ship.heading, '#ffffff', 1.8);
-}
-
-function drawRemotePlayerShip(ctx, ship) {
-  if (!ship) return;
-  ctx.save();
-  ctx.globalAlpha = 0.15;
-  ctx.strokeStyle = '#00ff88';
-  ctx.lineWidth = 8;
-  ctx.beginPath();
-  ctx.arc(ship.x, ship.y, 16, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.restore();
-  drawTriangle(ctx, ship.x, ship.y, 14, ship.heading, '#00ff88', 1.8);
-}
-
-function drawPullRadius(ctx, ship) {
-  if (!ship) return;
-  ctx.save();
-  ctx.globalAlpha = 0.18;
-  ctx.strokeStyle = '#ffe066';
-  ctx.lineWidth = 0.8;
-  ctx.setLineDash([3, 7]);
-  ctx.beginPath();
-  ctx.arc(ship.x, ship.y, PICKUP_PULL_RADIUS, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.setLineDash([]);
-  ctx.restore();
-}
-
-function drawBuildArc(ctx, ship, progress) {
-  ctx.save();
-  ctx.strokeStyle = '#00d4ff';
-  ctx.lineWidth = 2;
-  ctx.setLineDash([5, 5]);
-  ctx.beginPath();
-  const startAngle = -Math.PI / 2;
-  ctx.arc(ship.x, ship.y, 30, startAngle, startAngle + progress * Math.PI * 2);
-  ctx.stroke();
-  ctx.setLineDash([]);
-  ctx.restore();
-}
-
-// Utility: lighten a hex color or adjust opacity
-function shiftAlpha(color, factor) {
-  // Just use the color directly — we use it for stroke outlines
-  return color;
 }
 
 // ─── Screen-edge indicator helpers ──────────────────────────────────────────
 
-// Clamp a world-space point to a rectangle inset from the viewport edges.
-// Returns { sx, sy, angle } where angle points outward from screen center toward the original point.
 function clampToEdge(sx, sy, W, H, margin) {
   const cx = W / 2, cy = H / 2;
   const dx = sx - cx, dy = sy - cy;
@@ -694,14 +780,14 @@ function clampToEdge(sx, sy, W, H, margin) {
   };
 }
 
-function drawArrow(ctx, x, y, angle, size, color, alpha) {
+function drawArrowIndicator(ctx, x, y, angle, size, color, alpha) {
   ctx.save();
   ctx.globalAlpha = alpha;
   ctx.translate(x, y);
   ctx.rotate(angle);
   ctx.beginPath();
-  ctx.moveTo(size,     0);
-  ctx.lineTo(-size,  size * 0.65);
+  ctx.moveTo(size, 0);
+  ctx.lineTo(-size, size * 0.65);
   ctx.lineTo(-size * 0.3, 0);
   ctx.lineTo(-size, -size * 0.65);
   ctx.closePath();
@@ -711,29 +797,26 @@ function drawArrow(ctx, x, y, angle, size, color, alpha) {
   ctx.restore();
 }
 
-function drawWaveOriginIndicators(ctx, state, camera, W, H) {
-  if (!state.waveOrigins || state.waveOrigins.length === 0) return;
-
+function drawWarpGateIndicators(ctx, state, camera, W, H) {
+  if (!state.warpGates) return;
   const t = performance.now() / 1000;
-  const isBuildup = state.wavePhase === 'buildup';
   const margin = 36;
 
-  for (const origin of state.waveOrigins) {
-    const screen = camera.worldToScreen(origin.x, origin.y);
+  for (const gate of state.warpGates) {
+    const screen = camera.worldToScreen(gate.x, gate.y);
     const info = clampToEdge(screen.x, screen.y, W, H, margin);
-    if (info.onScreen) continue; // origin is visible in world — no indicator needed
+    if (info.onScreen) continue;
 
-    const alpha = isBuildup
-      ? 0.45 + 0.4 * Math.sin(t * 5)
-      : 0.85;
+    const alpha = gate.active
+      ? 0.6 + 0.4 * Math.sin(t * 5)
+      : 0.3;
 
-    drawArrow(ctx, info.sx, info.sy, info.angle, 10, '#ff8c00', alpha);
+    drawArrowIndicator(ctx, info.sx, info.sy, info.angle, 10, '#ff8c00', alpha);
   }
 }
 
 function drawOffscreenEnemyMarkers(ctx, state, camera, W, H) {
   if (!state.enemies || state.enemies.length === 0) return;
-
   const margin = 24;
 
   for (const e of state.enemies) {
@@ -741,6 +824,8 @@ function drawOffscreenEnemyMarkers(ctx, state, camera, W, H) {
     const info = clampToEdge(screen.x, screen.y, W, H, margin);
     if (info.onScreen) continue;
 
-    drawArrow(ctx, info.sx, info.sy, info.angle, 5, '#ff8c00', 0.65);
+    const size  = e.type === 'breacher' ? 9 : 5;
+    const alpha = e.type === 'hunter'   ? 0.85 : 0.55;
+    drawArrowIndicator(ctx, info.sx, info.sy, info.angle, size, '#ff8c00', alpha);
   }
 }

@@ -1,66 +1,80 @@
+// ── HP ───────────────────────────────────────────────────────────────────────
 export const BUILDING_HP = {
-  extractor: 60,
-  lightTurret: 80,
-  turretPlatform: 150,
-  shipyard: 200,
-  cryoBattery: 100,
-  fortress: 280,
+  metalExtractor: 60,
+  waterExtractor: 60,
+  railgunTurret: 140,
+  missileTurret: 120,
 };
 
+// ── Railgun turret fire stats ─────────────────────────────────────────────────
 export const BUILDING_FIRE_RATE = {
-  lightTurret: 4,       // shots/sec
-  turretPlatform: 1.5,
-  fortress: 0.5,        // slow heavy gun
+  railgunTurret: 1.5,
+  missileTurret: 0.5,
 };
 
 export const BUILDING_FIRE_RANGE = {
-  lightTurret: 300,
-  turretPlatform: 500,
-  fortress: 600,
+  railgunTurret: 500,
+  missileTurret: 600,
 };
 
 export const BUILDING_PROJECTILE_DAMAGE = {
-  lightTurret: 5,
-  turretPlatform: 15,
-  fortress: 25,
+  railgunTurret: 18,
+  missileTurret: 40,
 };
 
 export const BUILDING_PROJECTILE_SPEED = {
-  lightTurret: 550,
-  turretPlatform: 450,
-  fortress: 500,
+  railgunTurret: 480,
+  missileTurret: 180,
 };
 
-// Income per second for extractors; scaled by body radius
-export const EXTRACTOR_BASE_INCOME = 0.01; // credits/sec per radius unit
+// ── Turret ammo ───────────────────────────────────────────────────────────────
+export const RAILGUN_AMMO_BUFFER = 20;
+export const RAILGUN_REFILL_THRESHOLD = 8;
 
-export const SHIPYARD_SLOTS = 4;
-export const SHIPYARD_RESPAWN_TIME = 30; // seconds per frigate
+export const MISSILE_AMMO_BUFFER = 8;
+export const MISSILE_REFILL_THRESHOLD = 3;
+// Missile turret costs both metal AND fuel per refill batch
+export const MISSILE_REFILL_METAL = 6;
+export const MISSILE_REFILL_FUEL = 4;
 
-// Cryo battery — passive slow aura. Each battery in range subtracts
-// CRYO_SLOW_FACTOR from an enemy's effective speed multiplier; total
-// reduction is clamped at CRYO_MAX_SLOW so they never fully stop.
-export const CRYO_RANGE = 260;
-export const CRYO_SLOW_FACTOR = 0.35;
-export const CRYO_MAX_SLOW = 0.70;
+// ── Extractor production ──────────────────────────────────────────────────────
+export const EXTRACTOR_PRODUCE_RATE = 1.5; // units/sec
+export const EXTRACTOR_BUFFER_CAP = 20;
+export const EXTRACTOR_HAUL_THRESHOLD = 10;
 
-export function createBuilding(id, type, bodyId, bodyX, bodyY) {
-  const hp = BUILDING_HP[type];
+export function createBuilding(id, type, bodyId, slotIndex, x, y) {
+  const hp = BUILDING_HP[type] ?? 60;
   const base = {
     id,
     type,
     bodyId,
+    slotIndex,
     hp,
     maxHp: hp,
-    x: bodyX,
-    y: bodyY,
+    x, y,
     fireCooldown: 0,
     heading: -Math.PI / 2,
   };
 
-  if (type === 'shipyard') {
-    base.slots = Array.from({ length: SHIPYARD_SLOTS }, () => ({ occupied: false }));
-    base.respawnTimer = 0;
+  if (type === 'metalExtractor' || type === 'waterExtractor') {
+    base.buffer = 0;
+    base.bufferCap = EXTRACTOR_BUFFER_CAP;
+    base.claimed = false;
+    base.claimedBy = null;
+  }
+
+  if (type === 'railgunTurret') {
+    base.ammo = RAILGUN_AMMO_BUFFER;
+    base.ammoCap = RAILGUN_AMMO_BUFFER;
+    base.refillClaimed = false;
+    base.refillClaimedBy = null;
+  }
+
+  if (type === 'missileTurret') {
+    base.ammo = MISSILE_AMMO_BUFFER;
+    base.ammoCap = MISSILE_AMMO_BUFFER;
+    base.refillClaimed = false;
+    base.refillClaimedBy = null;
   }
 
   return base;

@@ -3,6 +3,8 @@ export function createInput(canvas) {
   const pressed = new Set();
   const released = new Set();
   const mouse = { screenX: 0, screenY: 0, worldX: 0, worldY: 0, scrollDelta: 0 };
+  const clicked = new Set();      // left-click edge triggers
+  const rightClicked = new Set(); // right-click edge triggers
 
   window.addEventListener('keydown', e => {
     if (['Space', 'Tab', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
@@ -32,12 +34,29 @@ export function createInput(canvas) {
     mouse.scrollDelta += e.deltaY;
   }, { passive: false });
 
+  canvas.addEventListener('mousedown', e => {
+    if (e.button === 0) clicked.add('left');
+    if (e.button === 2) rightClicked.add('right');
+  });
+
+  canvas.addEventListener('contextmenu', e => e.preventDefault());
+
   return {
     keys,
     mouse,
+    clicked,
+    rightClicked,
     wasPressed: (code) => pressed.has(code),
     wasReleased: (code) => released.has(code),
-    flush() { pressed.clear(); released.clear(); mouse.scrollDelta = 0; },
+    wasClicked: () => clicked.has('left'),
+    wasRightClicked: () => rightClicked.has('right'),
+    flush() {
+      pressed.clear();
+      released.clear();
+      clicked.clear();
+      rightClicked.clear();
+      mouse.scrollDelta = 0;
+    },
     updateMouseWorld(camera) {
       const w = camera.screenToWorld(mouse.screenX, mouse.screenY);
       mouse.worldX = w.x;

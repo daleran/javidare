@@ -1,48 +1,53 @@
+// aggro: ordered list of target-kinds; enemy attacks first category it can find
 export const ENEMY_DEFS = {
-  skirmisher: {
-    hp: 35,
-    speed: 180,
-    size: 10,
-    fireRate: 2.5,
-    fireDamage: 6,
-    fireSpeed: 500,
-    fireRange: 380,
+  swarmer: {
+    hp: 15,
+    speed: 160,
+    fireRate: 2,
+    burstCount: 2,
+    burstGap: 0.12,
+    fireDamage: 4,
+    fireSpeed: 420,
+    fireRange: 280,
     spawnCost: 1,
-    dropMin: 1,
-    dropMax: 1,
+    dropMetal: 2,
+    dropFuel: 0,
+    aggro: ['metalExtractor', 'waterExtractor', 'transport', 'missileTurret', 'railgunTurret', 'station'],
   },
-  bomber: {
-    hp: 90,
-    speed: 90,
-    size: 13,
-    fireRate: 0,    // bombers don't shoot
-    fireDamage: 0,
-    fireSpeed: 0,
-    fireRange: 0,
-    ramDamage: 40,
-    contactRadius: 18,
-    spawnCost: 3,
-    dropMin: 2,
-    dropMax: 3,
-  },
-  miniboss: {
-    hp: 600,
+  breacher: {
+    hp: 120,
     speed: 60,
-    size: 22,
-    fireRate: 1.2,
-    fireDamage: 12,
-    fireSpeed: 400,
-    fireRange: 600,
-    addSpawnInterval: 8,
-    spawnCost: 20,
-    dropMin: 15,
-    dropMax: 20,
+    fireRate: 0.6,
+    burstCount: 1,
+    burstGap: 0,
+    fireDamage: 22,
+    fireSpeed: 240,
+    fireRange: 160,
+    spawnCost: 5,
+    dropMetal: 6,
+    dropFuel: 1,
+    aggro: ['railgunTurret', 'missileTurret', 'metalExtractor', 'waterExtractor', 'station'],
+  },
+  hunter: {
+    hp: 60,
+    speed: 90,
+    fireRate: 0.8,
+    burstCount: 1,
+    burstGap: 0,
+    fireDamage: 14,
+    fireSpeed: 540,
+    fireRange: 520,
+    spawnCost: 4,
+    dropMetal: 3,
+    dropFuel: 2,
+    aggro: ['station'],
+    standoffRange: 420,  // tries to stay at this distance from target
   },
 };
 
 export function createEnemy(id, type, x, y) {
   const def = ENEMY_DEFS[type];
-  const base = {
+  return {
     id,
     type,
     hp: def.hp,
@@ -51,15 +56,10 @@ export function createEnemy(id, type, x, y) {
     vx: 0,
     vy: 0,
     heading: 0,
-    fireCooldown: Math.random() / (def.fireRate || 1),
-    strafeTick: 0,
+    fireCooldown: 0.5 + Math.random() * 0.5,
+    burstRemaining: 0,
+    burstGapTimer: 0,
+    strafeTick: Math.random() * 2.5,
     strafeDir: Math.random() < 0.5 ? 1 : -1,
   };
-
-  if (type === 'miniboss') {
-    base.addSpawnTimer = def.addSpawnInterval;
-    base.spawnedAddIds = [];
-  }
-
-  return base;
 }

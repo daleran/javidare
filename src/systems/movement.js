@@ -1,163 +1,66 @@
-import { PLAYER_ACCEL, PLAYER_DAMPING, PLAYER_SPEED } from '../entities/playerShip.js';
-import { FLEET_ACCEL, FLEET_DAMPING, FLEET_SPEED, getSlotOffset } from '../entities/fleetShip.js';
+import {
+  STATION_ORBIT_K, STATION_ORBIT_TRANSITION_RATE,
+} from '../entities/station.js';
+import {
+  TRANSPORT_SPEED, TRANSPORT_ACCEL, TRANSPORT_DAMPING,
+} from '../entities/transportShip.js';
 
-const WORLD_HALF = 4400;
-const TURN_SPEED = 3.2;          // radians/s
-const FOLLOW_ENTER_RADIUS = 2.8; // multiples of body.radius to enter follow
-
-export function updateMovement(state, input, dt) {
+export function updateStation(state, dt) {
   if (state.gameStatus !== 'playing') return;
+  const st = state.station;
+  if (!st) return;
 
-  const ship = state.playerShip;
-  const { keys } = input;
+  // Tick flash timer
+  if (st.orbitFlashTimer > 0) st.orbitFlashTimer = Math.max(0, st.orbitFlashTimer - dt);
 
-  // Tank controls: A/D rotate, W thrusts forward, S brakes
-  if (keys['KeyA']) ship.heading -= TURN_SPEED * dt;
-  if (keys['KeyD']) ship.heading += TURN_SPEED * dt;
+  // Lerp orbit radius toward target (station always orbits the sun at origin)
+  if (st.targetOrbit) {
+    const diff = st.targetOrbit.radius - st.orbitRadius;
+    const step = STATION_ORBIT_TRANSITION_RATE * dt;
+    if (Math.abs(diff) <= step) {
+      st.orbitRadius = st.targetOrbit.radius;
+      st.targetOrbit = null;
+    } else {
+      st.orbitRadius += Math.sign(diff) * step;
+    }
+  }
 
-  const cos = Math.cos(ship.heading);
-  const sin = Math.sin(ship.heading);
-  const thrusting = keys['KeyW'] || keys['KeyS'];
+  // Keplerian speed: matches natural orbital velocity at current radius
+  const speed = STATION_ORBIT_K / Math.sqrt(st.orbitRadius);
+  st.orbitAngle += speed * dt;
 
-  // Ease-in: thrustTime ramps 0→1 over ~0.3 s while thrusting, resets instantly on release
-  ship.thrustTime = thrusting ? Math.min(1, ship.thrustTime + dt * 3.5) : 0;
-  const eased = ship.thrustTime * ship.thrustTime; // quadratic ease-in
+  // Sun is always at origin
+  st.x = Math.cos(st.orbitAngle) * st.orbitRadius;
+  st.y = Math.sin(st.orbitAngle) * st.orbitRadius;
+}
 
-  let thrustX = 0, thrustY = 0;
-  if (keys['KeyW']) { thrustX = cos; thrustY = sin; }
-  if (keys['KeyS']) { thrustX = -cos; thrustY = -sin; }
+export function updateTransportMovement(state, dt) {
+  for (const ship of state.transportShips) {
+    steer(ship, ship.targetX, ship.targetY, dt);
+    ship.x += ship.vx * dt;
+    ship.y += ship.vy * dt;
+    const spd = Math.hypot(ship.vx, ship.vy);
+    if (spd > 20) ship.heading = Math.atan2(ship.vy, ship.vx);
+  }
+}
 
-  ship.vx = (ship.vx + thrustX * PLAYER_ACCEL * eased * dt) * Math.pow(PLAYER_DAMPING, dt * 60);
-  ship.vy = (ship.vy + thrustY * PLAYER_ACCEL * eased * dt) * Math.pow(PLAYER_DAMPING, dt * 60);
+function steer(ship, targetX, targetY, dt) {
+  const dx = targetX - ship.x;
+  const dy = targetY - ship.y;
+  const dist = Math.hypot(dx, dy);
 
-  // Cap speed
+  if (dist > 8) {
+    const force = Math.min(dist * 12, TRANSPORT_ACCEL);
+    ship.vx += (dx / dist) * force * dt;
+    ship.vy += (dy / dist) * force * dt;
+  }
+
+  ship.vx *= Math.pow(TRANSPORT_DAMPING, dt * 60);
+  ship.vy *= Math.pow(TRANSPORT_DAMPING, dt * 60);
+
   const spd = Math.hypot(ship.vx, ship.vy);
-  if (spd > PLAYER_SPEED) {
-    ship.vx = (ship.vx / spd) * PLAYER_SPEED;
-    ship.vy = (ship.vy / spd) * PLAYER_SPEED;
-  }
-
-  if (keys['KeyW']) spawnThrustParticles(state, ship);
-
-  // Planet follow: if not pressing any movement key and near a body, translate with it
-  updateFollow(state, ship, keys);
-
-  ship.x += ship.vx * dt;
-  ship.y += ship.vy * dt;
-
-  // Soft world boundary
-  ship.x = Math.max(-WORLD_HALF, Math.min(WORLD_HALF, ship.x));
-  ship.y = Math.max(-WORLD_HALF, Math.min(WORLD_HALF, ship.y));
-
-  updateFleetMovement(state, dt);
-}
-
-function updateFollow(state, ship, keys) {
-  // Only thrust releases the ship from following; rotation (A/D) does not
-  if (keys['KeyW'] || keys['KeyS']) {
-    ship.orbitBodyId = null;
-    return;
-  }
-
-  // Find closest body within range
-  let followBody = null;
-  let followDist = Infinity;
-  for (const body of state.bodies) {
-    const dx = ship.x - body.x;
-    const dy = ship.y - body.y;
-    const dist = Math.hypot(dx, dy);
-    if (dist < body.radius * FOLLOW_ENTER_RADIUS && dist < followDist) {
-      followBody = body;
-      followDist = dist;
-    }
-  }
-
-  if (!followBody) {
-    ship.orbitBodyId = null;
-    return;
-  }
-
-  // Record offset the first time we lock onto this body
-  if (ship.orbitBodyId !== followBody.id) {
-    ship.orbitBodyId = followBody.id;
-    ship.followDx = ship.x - followBody.x;
-    ship.followDy = ship.y - followBody.y;
-  }
-
-  // Reapply the fixed offset each tick — ship translates with the planet
-  ship.x = followBody.x + ship.followDx;
-  ship.y = followBody.y + ship.followDy;
-  ship.vx = 0;
-  ship.vy = 0;
-}
-
-function spawnThrustParticles(state, ship) {
-  const spd = Math.hypot(ship.vx, ship.vy);
-  const speedRatio = Math.min(1, spd / PLAYER_SPEED);
-
-  // Always emit 1 particle; emit a second one probabilistically at higher speeds
-  const count = 1 + (Math.random() < speedRatio ? 1 : 0);
-
-  const cos = Math.cos(ship.heading);
-  const sin = Math.sin(ship.heading);
-
-  for (let i = 0; i < count; i++) {
-    const offset = 14 + Math.random() * 6;
-    const spread = (Math.random() - 0.5) * 8;
-    const backSpd = 40 + speedRatio * 180 * Math.random();
-
-    state.fx.push({
-      dot: true,
-      x: ship.x - cos * offset + (-sin) * spread,
-      y: ship.y - sin * offset +   cos  * spread,
-      vx: -cos * backSpd + (Math.random() - 0.5) * 20,
-      vy: -sin * backSpd + (Math.random() - 0.5) * 20,
-      ttl: 0.4 + Math.random() * 0.4,
-      maxTtl: 0.8,
-      color: Math.random() < 0.2 ? '#ffffff' : '#00d4ff',
-      size: 1.2 + Math.random() * 1.5 * speedRatio,
-    });
-  }
-}
-
-function updateFleetMovement(state, dt) {
-  const ship = state.playerShip;
-  const cos = Math.cos(ship.heading);
-  const sin = Math.sin(ship.heading);
-
-  for (const frigate of state.fleet) {
-    const slot = getSlotOffset(frigate.slotIndex);
-    // Rotate slot offset by player heading
-    const targetX = ship.x + cos * slot.x - sin * slot.y;
-    const targetY = ship.y + sin * slot.x + cos * slot.y;
-
-    const dx = targetX - frigate.x;
-    const dy = targetY - frigate.y;
-    const dist = Math.hypot(dx, dy);
-
-    // PD-controller: only steer when outside deadzone
-    const deadzone = 8;
-    if (dist > deadzone) {
-      const force = Math.min(dist * 12, FLEET_ACCEL);
-      frigate.vx += (dx / dist) * force * dt;
-      frigate.vy += (dy / dist) * force * dt;
-    }
-
-    frigate.vx *= Math.pow(FLEET_DAMPING, dt * 60);
-    frigate.vy *= Math.pow(FLEET_DAMPING, dt * 60);
-
-    const spd = Math.hypot(frigate.vx, frigate.vy);
-    if (spd > FLEET_SPEED) {
-      frigate.vx = (frigate.vx / spd) * FLEET_SPEED;
-      frigate.vy = (frigate.vy / spd) * FLEET_SPEED;
-    }
-
-    frigate.x += frigate.vx * dt;
-    frigate.y += frigate.vy * dt;
-
-    // Face direction of movement
-    if (spd > 20) {
-      frigate.heading = Math.atan2(frigate.vy, frigate.vx);
-    }
+  if (spd > TRANSPORT_SPEED) {
+    ship.vx = (ship.vx / spd) * TRANSPORT_SPEED;
+    ship.vy = (ship.vy / spd) * TRANSPORT_SPEED;
   }
 }
