@@ -27,6 +27,16 @@ export function createState() {
 
     nextId: 1,
 
+    upgrades: {
+      hullIntegrity: 0,
+      scanner: 0,
+      turretRefinements: 0,
+      mechanic: 0,
+      quantumOverdrive: 0,
+    },
+
+    waveBossWave: false,
+
     remotePlayers: [],  // [{ id, x, y, heading, hp, maxHp }] — other players in multiplayer
   };
 }

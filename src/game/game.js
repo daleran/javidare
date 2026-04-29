@@ -1,4 +1,5 @@
 import { createState, nextId } from './state.js';
+import { init as soundInit, stopLoop } from '../audio/sound.js';
 import { createLoop } from './loop.js';
 import { createCamera } from '../render/camera.js';
 import { createRenderer } from '../render/renderer.js';
@@ -7,7 +8,7 @@ import { createHud, updateHud } from '../ui/hud.js';
 import { initBodies, updateOrbits } from '../world/solarSystem.js';
 import { createPlayerShip } from '../entities/playerShip.js';
 import { createBuilding } from '../entities/building.js';
-import { updateMovement } from '../systems/movement.js';
+import { updateMovement, resetThrustSound } from '../systems/movement.js';
 import { updateCombat } from '../systems/combat.js';
 import { updateBuild } from '../systems/build.js';
 import { updateEconomy } from '../systems/economy.js';
@@ -57,7 +58,7 @@ export function createGame(canvas, hudContainer, net = null) {
 
   function init() {
     initState();
-    hud = createHud(hudContainer);
+    hud = createHud(hudContainer, () => state, camera);
 
     if (net) {
       // net is already connected by the lobby — just wire up the tick handler
@@ -90,6 +91,8 @@ export function createGame(canvas, hudContainer, net = null) {
     }
 
     if (state.gameStatus !== 'playing') {
+      stopLoop('ship_thrust');
+      resetThrustSound();
       input.flush();
       return;
     }
@@ -218,6 +221,7 @@ export function createGame(canvas, hudContainer, net = null) {
   const loop = createLoop(update, renderFrame);
 
   window.addEventListener('keydown', e => {
+    soundInit();
     if (e.code === 'KeyR') restart();
   });
 

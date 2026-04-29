@@ -11,13 +11,16 @@ export const FLEET_PROJECTILE_SPEED = 520;
 export const FLEET_PROJECTILE_DAMAGE = 6;
 export const FLEET_FIRE_RANGE = 420;
 
-// Slot offsets in player-local frame: spread behind the player in a V
+// 4-wide wing formation; row spreads widen as ships trail further back
 export function getSlotOffset(slotIndex) {
-  const row = Math.floor(slotIndex / 2);
-  const side = slotIndex % 2 === 0 ? -1 : 1;
+  const COLS = 4;
+  const row = Math.floor(slotIndex / COLS);
+  const col = slotIndex % COLS;
+  const spread = 34 + row * 10;
+  const yFrac = col - (COLS - 1) / 2; // -1.5, -0.5, 0.5, 1.5
   return {
-    x: -(55 + row * 30),
-    y: side * (24 + row * 22),
+    x: -(52 + row * 46),
+    y: yFrac * spread,
   };
 }
 

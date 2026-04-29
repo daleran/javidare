@@ -54,6 +54,8 @@ export function createEnemy(id, type, x, y) {
     fireCooldown: Math.random() / (def.fireRate || 1),
     strafeTick: 0,
     strafeDir: Math.random() < 0.5 ? 1 : -1,
+    spawnAnim: 0.3,
+    barkTimer: 4 + Math.random() * 8,
   };
 
   if (type === 'miniboss') {

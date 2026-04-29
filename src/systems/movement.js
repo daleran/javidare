@@ -1,8 +1,10 @@
 import { PLAYER_ACCEL, PLAYER_DAMPING, PLAYER_SPEED } from '../entities/playerShip.js';
 import { FLEET_ACCEL, FLEET_DAMPING, FLEET_SPEED, getSlotOffset } from '../entities/fleetShip.js';
+import { startLoop, stopLoop } from '../audio/sound.js';
 
-const WORLD_HALF = 4400;
-const TURN_SPEED = 3.2;          // radians/s
+const WORLD_HALF = 8192;
+const TURN_SPEED = 3.2;
+let _thrustLooping = false;
 const FOLLOW_ENTER_RADIUS = 2.8; // multiples of body.radius to enter follow
 
 export function updateMovement(state, input, dt) {
@@ -18,6 +20,8 @@ export function updateMovement(state, input, dt) {
   const cos = Math.cos(ship.heading);
   const sin = Math.sin(ship.heading);
   const thrusting = keys['KeyW'] || keys['KeyS'];
+  if (thrusting && !_thrustLooping) { startLoop('ship_thrust'); _thrustLooping = true; }
+  if (!thrusting && _thrustLooping) { stopLoop('ship_thrust'); _thrustLooping = false; }
 
   // Ease-in: thrustTime ramps 0→1 over 1.5 s while thrusting, resets instantly on release
   ship.thrustTime = thrusting ? Math.min(1, ship.thrustTime + dt) : 0;
@@ -30,11 +34,12 @@ export function updateMovement(state, input, dt) {
   ship.vx = (ship.vx + thrustX * PLAYER_ACCEL * eased * dt) * Math.pow(PLAYER_DAMPING, dt * 60);
   ship.vy = (ship.vy + thrustY * PLAYER_ACCEL * eased * dt) * Math.pow(PLAYER_DAMPING, dt * 60);
 
-  // Cap speed
+  const speedCap = PLAYER_SPEED * (1 + 0.2 * (state.upgrades.quantumOverdrive || 0));
+
   const spd = Math.hypot(ship.vx, ship.vy);
-  if (spd > PLAYER_SPEED) {
-    ship.vx = (ship.vx / spd) * PLAYER_SPEED;
-    ship.vy = (ship.vy / spd) * PLAYER_SPEED;
+  if (spd > speedCap) {
+    ship.vx = (ship.vx / spd) * speedCap;
+    ship.vy = (ship.vy / spd) * speedCap;
   }
 
   if (keys['KeyW']) spawnThrustParticles(state, ship);
@@ -125,8 +130,9 @@ function updateFleetMovement(state, dt) {
   const cos = Math.cos(ship.heading);
   const sin = Math.sin(ship.heading);
 
-  for (const frigate of state.fleet) {
-    const slot = getSlotOffset(frigate.slotIndex);
+  for (let fi = 0; fi < state.fleet.length; fi++) {
+    const frigate = state.fleet[fi];
+    const slot = getSlotOffset(fi);
     // Rotate slot offset by player heading
     const targetX = ship.x + cos * slot.x - sin * slot.y;
     const targetY = ship.y + sin * slot.x + cos * slot.y;
@@ -160,4 +166,8 @@ function updateFleetMovement(state, dt) {
       frigate.heading = Math.atan2(frigate.vy, frigate.vx);
     }
   }
+}
+
+export function resetThrustSound() {
+  _thrustLooping = false;
 }

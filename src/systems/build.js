@@ -1,6 +1,7 @@
 import { BUILDING_FOR_BODY, BUILDING_COST } from '../world/bodies.js';
 import { createBuilding } from '../entities/building.js';
 import { nextId } from '../game/state.js';
+import { play } from '../audio/sound.js';
 
 const BUILD_DURATION = 1.0;  // seconds to hold Space
 const BUILD_OVERLAP  = 40;   // extra pixels beyond body radius to trigger build zone
@@ -124,6 +125,7 @@ function completeBuild(state, now) {
   state.buildBodyId = null;
   state.buildType = null;
   state.buildOptions = null;
+  play('build');
 
   // Pre-populate next build target so there's no one-frame gap that causes prompt flicker
   const ship = state.playerShip;

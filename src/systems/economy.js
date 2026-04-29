@@ -1,6 +1,7 @@
 import { EXTRACTOR_BASE_INCOME, SHIPYARD_RESPAWN_TIME } from '../entities/building.js';
 import { createFleetShip, FLEET_COST } from '../entities/fleetShip.js';
 import { nextId } from '../game/state.js';
+import { play } from '../audio/sound.js';
 
 const PICKUP_COLLECT_RADIUS = 50;
 export const PICKUP_PULL_RADIUS = 480;
@@ -69,7 +70,7 @@ export function updateEconomy(state, dt) {
         break;
       }
     }
-    if (collected) state.pickups.splice(i, 1);
+    if (collected) { play('pickup_credit'); state.pickups.splice(i, 1); }
   }
 
   // Shipyard fleet replenishment — serial per yard (one frigate at a time), costs FLEET_COST
@@ -110,5 +111,6 @@ function spawnFrigate(state, shipyard, slotIndex) {
   const id = nextId(state);
   const frigate = createFleetShip(id, slotIndex, shipyard.id, shipyard.x + (Math.random() - 0.5) * 30, shipyard.y + (Math.random() - 0.5) * 30);
   state.fleet.push(frigate);
+  play('follower_spawned');
   return true;
 }

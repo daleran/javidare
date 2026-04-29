@@ -1,15 +1,66 @@
 import { BUILDING_LABEL, BUILDING_COST } from '../world/bodies.js';
+import { play, init as soundInit, getVolume, setVolume } from '../audio/sound.js';
 
-const TOTAL_WAVES = 6;
+const UPGRADE_DEFS = [
+  {
+    id: 'hullIntegrity',
+    icon: '◆',
+    name: 'Hull Integrity',
+    desc: '+10% max hull',
+    cost: 50,
+    maxLevel: Infinity,
+  },
+  {
+    id: 'scanner',
+    icon: '⊕',
+    name: 'Scanner Improvements',
+    desc: '+10% zoom range',
+    cost: 30,
+    maxLevel: Infinity,
+  },
+  {
+    id: 'turretRefinements',
+    icon: '◉',
+    name: 'Turret Refinements',
+    desc: '+20% fire rate',
+    cost: 40,
+    maxLevel: 3,
+  },
+  {
+    id: 'mechanic',
+    icon: '◎',
+    name: 'On-board Mechanic',
+    desc: '+2 hull/s regen',
+    cost: 100,
+    maxLevel: 3,
+  },
+  {
+    id: 'quantumOverdrive',
+    icon: '▲',
+    name: 'Quantum Overdrive',
+    desc: '+20% move speed',
+    cost: 50,
+    maxLevel: 3,
+  },
+];
 
-export function createHud(container) {
+function applyUpgrade(id, state, camera) {
+  if (id === 'hullIntegrity' && state.playerShip) {
+    state.playerShip.maxHp = Math.round(state.playerShip.maxHp * 1.1);
+  } else if (id === 'scanner') {
+    camera.zoomMin = Math.max(0.05, camera.zoomMin * 0.9);
+  }
+  // turretRefinements, mechanic, quantumOverdrive: systems read state.upgrades each tick
+}
+
+export function createHud(container, getState, camera) {
   container.innerHTML = `
     <div id="hud-wallet" class="hud-panel">
       <div id="hud-credits">CREDITS: 5</div>
       <div id="hud-income" style="color:var(--gold);font-size:10px;margin-top:2px">+0.0/s</div>
     </div>
 
-    <div id="hud-wave" class="hud-panel">WAVE 0/6 — PREPARE</div>
+    <div id="hud-wave" class="hud-panel">WAVE 1 — PREPARE</div>
 
     <div id="hud-fleet" class="hud-panel">FLEET 0/0</div>
 
@@ -20,16 +71,14 @@ export function createHud(container) {
 
     <div id="hud-build-prompt" class="hud-panel"></div>
 
-    <button class="hud-btn" id="btn-upgrade-open">UPGRADE</button>
+    <button class="hud-btn" id="btn-upgrade-open">UPGRADE <span class="hud-key">Q</span></button>
 
     <div id="hud-upgrade-panel">
       <div id="hud-upgrade-header">
         <span>UPGRADE TERMINAL</span>
-        <button class="hud-btn secondary" id="btn-upgrade-close">✕</button>
+        <button class="hud-btn secondary" id="btn-upgrade-close">&#x2715;</button>
       </div>
-      <div id="hud-upgrade-body">
-        <!-- upgrade options will go here -->
-      </div>
+      <div id="hud-upgrade-body"></div>
     </div>
 
     <div id="hud-modal-gameover" class="hud-modal">
@@ -41,21 +90,16 @@ export function createHud(container) {
       </div>
     </div>
 
-    <div id="hud-modal-victory" class="hud-modal">
-      <h1>VICTORY</h1>
-      <p>THE SYSTEM IS SECURE</p>
-      <div class="hud-modal-buttons">
-        <button class="hud-btn" id="btn-restart-victory">PLAY AGAIN</button>
-        <button class="hud-btn secondary" id="btn-quit-victory">QUIT</button>
-      </div>
-    </div>
-
     <div id="hud-modal-pause" class="hud-modal">
       <h1>PAUSED</h1>
       <p>PRESS ESC TO RESUME</p>
       <div class="hud-modal-buttons">
         <button class="hud-btn" id="btn-resume">RESUME</button>
         <button class="hud-btn secondary" id="btn-mainmenu-pause">MAIN MENU</button>
+      </div>
+      <div id="hud-volume-row">
+        <label for="hud-volume-slider">VOLUME</label>
+        <input type="range" id="hud-volume-slider" min="0" max="1" step="0.01" />
       </div>
     </div>
   `;
@@ -68,35 +112,88 @@ export function createHud(container) {
     hpFill: container.querySelector('#hud-hp-bar-fill'),
     buildPrompt: container.querySelector('#hud-build-prompt'),
     modalGameover: container.querySelector('#hud-modal-gameover'),
-    modalVictory: container.querySelector('#hud-modal-victory'),
     modalPause: container.querySelector('#hud-modal-pause'),
     upgradePanel: container.querySelector('#hud-upgrade-panel'),
     upgradeBody: container.querySelector('#hud-upgrade-body'),
+    upgradeBtns: {},
   };
+
+  // Unlock AudioContext and attach hover/click sounds to all hud buttons
+  function attachButtonSounds(btn) {
+    btn.addEventListener('mouseenter', () => play('button_hover'));
+    btn.addEventListener('click', () => { soundInit(); play('button_click'); });
+  }
+  for (const btn of container.querySelectorAll('.hud-btn')) attachButtonSounds(btn);
+
+  // Volume slider
+  const volSlider = container.querySelector('#hud-volume-slider');
+  volSlider.value = String(getVolume());
+  volSlider.addEventListener('input', () => setVolume(parseFloat(volSlider.value)));
 
   const btnOpen = container.querySelector('#btn-upgrade-open');
   const btnClose = container.querySelector('#btn-upgrade-close');
-  btnOpen.addEventListener('click', () => els.upgradePanel.classList.add('open'));
+  const togglePanel = () => els.upgradePanel.classList.toggle('open');
+  btnOpen.addEventListener('click', togglePanel);
   btnClose.addEventListener('click', () => els.upgradePanel.classList.remove('open'));
+
+  const SHORTCUT_KEYS = ['1','2','3','4','5','6','7','8','9','0'];
+
+  for (let i = 0; i < UPGRADE_DEFS.length; i++) {
+    const def = UPGRADE_DEFS[i];
+    const key = SHORTCUT_KEYS[i] ?? '';
+    const btn = document.createElement('button');
+    btn.className = 'upgrade-item';
+    btn.innerHTML = `
+      ${key ? `<span class="upgrade-key">${key}</span>` : ''}
+      <span class="upgrade-icon">${def.icon}</span>
+      <div class="upgrade-info">
+        <div class="upgrade-name">${def.name}</div>
+        <div class="upgrade-desc">${def.desc}</div>
+      </div>
+      <div class="upgrade-right">
+        <div class="upgrade-cost">${def.cost}¢</div>
+        <div class="upgrade-level"></div>
+      </div>
+    `;
+    btn.addEventListener('click', () => {
+      const state = getState();
+      if (state.gameStatus !== 'playing') return;
+      const level = state.upgrades[def.id];
+      if (level >= def.maxLevel) return;
+      if (state.wallet < def.cost) return;
+      state.wallet -= def.cost;
+      state.upgrades[def.id]++;
+      applyUpgrade(def.id, state, camera);
+      play('upgrade');
+    });
+    btn.addEventListener('mouseenter', () => play('button_hover'));
+    els.upgradeBody.appendChild(btn);
+    els.upgradeBtns[def.id] = btn;
+  }
+
+  window.addEventListener('keydown', e => {
+    if (e.code === 'KeyQ') { togglePanel(); return; }
+    if (!els.upgradePanel.classList.contains('open')) return;
+    const match = e.code.match(/^Digit(\d)$/);
+    if (!match) return;
+    const idx = match[1] === '0' ? 9 : parseInt(match[1]) - 1;
+    if (idx < UPGRADE_DEFS.length) els.upgradeBtns[UPGRADE_DEFS[idx].id]?.click();
+  });
 
   return els;
 }
 
 export function updateHud(hud, state, camera, onRestart, onQuit, onResume) {
-  // Wire up button listeners once (idempotent via flag)
   if (!hud._listenersAttached) {
     hud._listenersAttached = true;
     document.getElementById('btn-restart-gameover')?.addEventListener('click', onRestart);
     document.getElementById('btn-mainmenu-gameover')?.addEventListener('click', onQuit);
-    document.getElementById('btn-restart-victory')?.addEventListener('click', onRestart);
-    document.getElementById('btn-quit-victory')?.addEventListener('click', onQuit);
     document.getElementById('btn-resume')?.addEventListener('click', onResume);
     document.getElementById('btn-mainmenu-pause')?.addEventListener('click', onQuit);
   }
 
   // Modals
   hud.modalGameover.classList.toggle('visible', state.gameStatus === 'gameover');
-  hud.modalVictory.classList.toggle('visible', state.gameStatus === 'victory');
   hud.modalPause.classList.toggle('visible', state.gameStatus === 'paused');
 
   // Wallet
@@ -107,15 +204,17 @@ export function updateHud(hud, state, camera, onRestart, onQuit, onResume) {
 
   // Wave banner
   const wave = state.waveIndex;
-  if (state.wavePhase === 'buildup' && wave < TOTAL_WAVES) {
+  if (state.wavePhase === 'buildup') {
     const secs = Math.ceil(state.waveTimer);
-    hud.wave.textContent = `WAVE ${wave + 1}/${TOTAL_WAVES} — T-${secs}s`;
+    const nextWave = wave + 1;
+    const nextIsBoss = nextWave % 6 === 0;
+    const label = nextIsBoss ? `WAVE ${nextWave} — BOSS` : `WAVE ${nextWave}`;
+    hud.wave.textContent = wave === 0
+      ? `PREPARE — T-${secs}s`
+      : `${label} — T-${secs}s`;
   } else if (state.wavePhase === 'combat') {
-    hud.wave.textContent = `WAVE ${wave}/${TOTAL_WAVES} — COMBAT`;
-  } else if (wave === 0 && state.wavePhase === 'buildup') {
-    hud.wave.textContent = `PREPARE — T-${Math.ceil(state.waveTimer)}s`;
-  } else {
-    hud.wave.textContent = `WAVE ${wave}/${TOTAL_WAVES}`;
+    const label = state.waveBossWave ? `WAVE ${wave} — BOSS` : `WAVE ${wave}`;
+    hud.wave.textContent = `${label} — COMBAT`;
   }
 
   // Fleet counter
@@ -165,5 +264,23 @@ export function updateHud(hud, state, camera, onRestart, onQuit, onResume) {
     }
   } else {
     hud.buildPrompt.style.display = 'none';
+  }
+
+  // Upgrade button states
+  for (const def of UPGRADE_DEFS) {
+    const btn = hud.upgradeBtns[def.id];
+    if (!btn) continue;
+    const level = state.upgrades[def.id];
+    const maxed = level >= def.maxLevel;
+    const affordable = state.wallet >= def.cost;
+    btn.disabled = maxed;
+    btn.classList.toggle('maxed', maxed);
+    btn.classList.toggle('unaffordable', !affordable && !maxed);
+    const levelEl = btn.querySelector('.upgrade-level');
+    if (def.maxLevel < Infinity) {
+      levelEl.textContent = `${level}/${def.maxLevel}`;
+    } else {
+      levelEl.textContent = level > 0 ? `x${level}` : '';
+    }
   }
 }

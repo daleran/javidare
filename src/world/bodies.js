@@ -76,6 +76,20 @@ const OUTER_CLUSTERS = [
   ...makeCluster('bb', 'Belt-B', 6, Math.PI * 1.80,  1930, -0.0096),
 ];
 
+const BELT_C_CLUSTERS = [
+  ...makeCluster('bc', 'Belt-C', 1, 0.30,            3680, 0.0038),
+  ...makeCluster('bc', 'Belt-C', 2, Math.PI * 0.75,  3720, 0.0037),
+  ...makeCluster('bc', 'Belt-C', 3, Math.PI * 1.40,  3700, 0.0039),
+  ...makeCluster('bc', 'Belt-C', 4, Math.PI * 1.90,  3690, 0.0038),
+];
+
+const BELT_D_CLUSTERS = [
+  ...makeCluster('bd', 'Belt-D', 1, 0.65,            5180, -0.0028),
+  ...makeCluster('bd', 'Belt-D', 2, Math.PI * 0.95,  5220, -0.0027),
+  ...makeCluster('bd', 'Belt-D', 3, Math.PI * 1.50,  5200, -0.0029),
+  ...makeCluster('bd', 'Belt-D', 4, Math.PI * 1.10,  5190, -0.0028),
+];
+
 export const BODY_DEFS = [
   // Sun — fixed at origin
   { id: 'sun', type: 'sun', parentId: null, orbitRadius: 0, orbitSpeed: 0, phase: 0, radius: 64, color: '#ffe580', label: 'Star' },
@@ -113,4 +127,33 @@ export const BODY_DEFS = [
   { id: 'miruIII', type: 'moon',     parentId: 'miru', orbitRadius: 180,  orbitSpeed:  0.065, phase: Math.PI * 1.45, radius: 9,  color: '#6a8a72', label: 'Miru III' },
   { id: 'miruIV',  type: 'moon',     parentId: 'miru', orbitRadius: 215,  orbitSpeed:  0.055, phase: Math.PI * 1.75, radius: 7,  color: '#7c9c84', label: 'Miru IV' },
   { id: 'miruV',   type: 'moon',     parentId: 'miru', orbitRadius: 248,  orbitSpeed:  0.046, phase: Math.PI * 0.55, radius: 8,  color: '#5a8068', label: 'Miru V' },
+
+  // Nex — outer rocky planet + 2 moons
+  { id: 'nex',   type: 'rocky',    parentId: 'sun',  orbitRadius: 3200, orbitSpeed:  0.0040, phase: Math.PI * 0.45, radius: 16, color: '#7a5c4a', label: 'Nex' },
+  { id: 'nexI',  type: 'moon',     parentId: 'nex',  orbitRadius: 75,   orbitSpeed:  0.095,  phase: Math.PI * 0.80, radius: 8,  color: '#7a7060', label: 'Nex I' },
+  { id: 'nexII', type: 'ice_moon', parentId: 'nex',  orbitRadius: 110,  orbitSpeed: -0.070,  phase: Math.PI * 1.60, radius: 7,  color: '#aac4d4', label: 'Nex II' },
+
+  // Belt-C — outer asteroid belt between Nex and Thal
+  ...BELT_C_CLUSTERS,
+
+  // Thal — gas giant + 3 moons
+  { id: 'thal',    type: 'gas',      parentId: 'sun',  orbitRadius: 4600, orbitSpeed:  0.0026, phase: Math.PI * 1.30, radius: 52, color: '#786050', label: 'Thal' },
+  { id: 'thalI',   type: 'moon',     parentId: 'thal', orbitRadius: 120,  orbitSpeed:  0.085,  phase: Math.PI * 0.60, radius: 10, color: '#887060', label: 'Thal I' },
+  { id: 'thalII',  type: 'ice_moon', parentId: 'thal', orbitRadius: 160,  orbitSpeed: -0.065,  phase: Math.PI * 1.40, radius: 9,  color: '#b4ccd8', label: 'Thal II' },
+  { id: 'thalIII', type: 'moon',     parentId: 'thal', orbitRadius: 195,  orbitSpeed:  0.052,  phase: Math.PI * 0.95, radius: 8,  color: '#a09078', label: 'Thal III' },
+
+  // Belt-D — asteroid belt between Thal and Kral
+  ...BELT_D_CLUSTERS,
+
+  // Kral — ringed giant + 4 moons
+  { id: 'kral',    type: 'ringed_giant', parentId: 'sun',   orbitRadius: 5800, orbitSpeed: -0.0019, phase: Math.PI * 0.70, radius: 48, color: '#607888', label: 'Kral' },
+  { id: 'kralI',   type: 'moon',         parentId: 'kral',  orbitRadius: 105,  orbitSpeed:  0.088,  phase: Math.PI * 1.20, radius: 9,  color: '#506878', label: 'Kral I' },
+  { id: 'kralII',  type: 'moon',         parentId: 'kral',  orbitRadius: 140,  orbitSpeed: -0.072,  phase: Math.PI * 0.35, radius: 8,  color: '#6a7888', label: 'Kral II' },
+  { id: 'kralIII', type: 'ice_moon',     parentId: 'kral',  orbitRadius: 175,  orbitSpeed:  0.058,  phase: Math.PI * 1.65, radius: 9,  color: '#a8bcd0', label: 'Kral III' },
+  { id: 'kralIV',  type: 'moon',         parentId: 'kral',  orbitRadius: 210,  orbitSpeed:  0.048,  phase: Math.PI * 0.90, radius: 7,  color: '#788898', label: 'Kral IV' },
+
+  // Veth — distant ice world + 2 ice moons
+  { id: 'veth',   type: 'rocky',    parentId: 'sun',  orbitRadius: 7200, orbitSpeed:  0.0013, phase: Math.PI * 1.50, radius: 20, color: '#8ab4c8', label: 'Veth' },
+  { id: 'vethI',  type: 'ice_moon', parentId: 'veth', orbitRadius: 85,   orbitSpeed:  0.080,  phase: Math.PI * 0.70, radius: 9,  color: '#c4d8e8', label: 'Veth I' },
+  { id: 'vethII', type: 'ice_moon', parentId: 'veth', orbitRadius: 120,  orbitSpeed: -0.060,  phase: Math.PI * 1.40, radius: 7,  color: '#b0cce0', label: 'Veth II' },
 ];

@@ -2,6 +2,7 @@ import {
   PLAYER_FIRE_RATE, PLAYER_PROJECTILE_SPEED, PLAYER_PROJECTILE_DAMAGE, PLAYER_FIRE_RANGE,
   HOME_HEAL_RADIUS, HOME_HEAL_RATE,
 } from '../entities/playerShip.js';
+import { play } from '../audio/sound.js';
 import {
   FLEET_FIRE_RATE, FLEET_PROJECTILE_SPEED, FLEET_PROJECTILE_DAMAGE, FLEET_FIRE_RANGE,
 } from '../entities/fleetShip.js';
@@ -107,6 +108,15 @@ export function updateCombat(state, dt) {
       }
     }
   }
+
+  // On-board mechanic passive regen (2 HP/s per level)
+  if (state.upgrades.mechanic > 0) {
+    for (const ship of getAllPlayerShips(state)) {
+      if (ship.hp < ship.maxHp) {
+        ship.hp = Math.min(ship.maxHp, ship.hp + 2 * state.upgrades.mechanic * dt);
+      }
+    }
+  }
 }
 
 function cryoSlowFactor(state, x, y) {
@@ -124,6 +134,12 @@ function updateEnemyAI(state, dt) {
   const now = state.waveTimer; // use as time reference for strafe
   for (let i = state.enemies.length - 1; i >= 0; i--) {
     const e = state.enemies[i];
+    if (e.spawnAnim > 0) e.spawnAnim = Math.max(0, e.spawnAnim - dt);
+    e.barkTimer -= dt;
+    if (e.barkTimer <= 0) {
+      e.barkTimer = 5 + Math.random() * 10;
+      play('alien_bark');
+    }
     const def = ENEMY_DEFS[e.type];
 
     // Cryo slow aura applies to this enemy's effective speed for this tick
@@ -208,7 +224,7 @@ function updateEnemyAI(state, dt) {
         e.addSpawnTimer -= dt;
         if (e.addSpawnTimer <= 0) {
           e.addSpawnTimer = def.addSpawnInterval;
-          spawnAdd(state, e);
+          for (let a = 0; a < 4; a++) spawnAdd(state, e);
         }
       }
     }
@@ -248,6 +264,7 @@ function spawnAdd(state, miniboss) {
     fireCooldown: Math.random(),
     strafeTick: 0,
     strafeDir: Math.random() < 0.5 ? 1 : -1,
+    spawnAnim: 0.3,
     isAdd: true,
   };
   state.enemies.push(add);
@@ -263,17 +280,19 @@ function killEnemy(state, index) {
   spawnDropPickup(state, e);
   spawnDeathFx(state, e.x, e.y, '#ff8c00');
 
+  if (e.type === 'miniboss') play('boss_destroyed');
+  else play('ship_destroyed');
+
   // Remove the enemy first, then handle miniboss special logic
   state.enemies.splice(index, 1);
 
   if (e.type === 'miniboss') {
-    // Despawn all adds spawned by this boss (by id list)
     state.enemies = state.enemies.filter(en => !e.spawnedAddIds.includes(en.id));
-    state.gameStatus = 'victory';
   }
 }
 
 function killPlayerShip(state, ship) {
+  play('ship_destroyed');
   spawnDeathFx(state, ship.x, ship.y, '#00d4ff');
 
   if (state.players) {
@@ -288,6 +307,7 @@ function killPlayerShip(state, ship) {
 
 function killFrigate(state, index) {
   const f = state.fleet[index];
+  play('ship_destroyed');
   spawnDeathFx(state, f.x, f.y, '#00d4ff');
 
   const shipyard = state.buildings.find(b => b.id === f.homeShipyardId);
@@ -382,14 +402,16 @@ function aimLead(sx, sy, target, projSpeed) {
 }
 
 function playerAutofire(state, dt) {
+  const fireRate = PLAYER_FIRE_RATE * (1 + 0.2 * (state.upgrades.turretRefinements || 0));
   for (const ship of getAllPlayerShips(state)) {
     ship.fireCooldown -= dt;
     if (ship.fireCooldown > 0) continue;
     const target = nearestEnemy(state, ship.x, ship.y, PLAYER_FIRE_RANGE);
     if (!target) continue;
-    ship.fireCooldown = 1 / PLAYER_FIRE_RATE;
+    ship.fireCooldown = 1 / fireRate;
     const angle = aimLead(ship.x, ship.y, target, PLAYER_PROJECTILE_SPEED);
     state.projectiles.push(createProjectile(ship.x, ship.y, angle, PLAYER_PROJECTILE_SPEED, PLAYER_PROJECTILE_DAMAGE, 'friendly'));
+    play('laser');
   }
 }
 
